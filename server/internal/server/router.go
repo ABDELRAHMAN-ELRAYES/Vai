@@ -5,8 +5,8 @@ import (
 
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/app"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/env"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules"
 
-	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/handler"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -31,10 +31,8 @@ func NewRouter(app *app.Application) *chi.Mux {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(60 * time.Second))
 
-	h := handler.New(app)
-
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Get("/health", h.HealthCheck)
+		modules.Register(r, app)
 	})
 
 	return r
