@@ -8,6 +8,7 @@ type Config struct {
 	APIURL      string
 	FrontendURL string
 	DB          DB
+	AI          AI
 }
 
 // DB holds database related configuration.
@@ -16,6 +17,10 @@ type DB struct {
 	MaxOpenConns int
 	MaxIdleConns int
 	MaxIdleTime  string
+}
+type AI struct {
+	BaseURL string
+	Name    string
 }
 
 func Load() Config {
@@ -29,6 +34,10 @@ func Load() Config {
 			MaxOpenConns: env.GetIntEnv("DB_MAX_OPEN_CONNS", 30),
 			MaxIdleConns: env.GetIntEnv("DB_MAX_IDLE_CONNS", 30),
 			MaxIdleTime:  env.GetStringEnv("DB_MAX_IDLE_TIME", "15m"),
+		},
+		AI: AI{
+			BaseURL: env.GetStringEnv("AI_MODEL_URL", "http://localhost:11434"),
+			Name:    env.GetStringEnv("AI_MODEL_NAME", "qwen3.5:4b"),
 		},
 	}
 }
