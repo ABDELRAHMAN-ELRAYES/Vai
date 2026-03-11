@@ -9,6 +9,7 @@ type Config struct {
 	FrontendURL string
 	DB          DB
 	AI          AI
+	QdrantDB    QdrantConfig
 }
 
 // DB holds database related configuration.
@@ -19,8 +20,13 @@ type DB struct {
 	MaxIdleTime  string
 }
 type AI struct {
-	BaseURL string
-	Name    string
+	BaseURL        string
+	Name           string
+	EmBeddingModel string
+}
+type QdrantConfig struct {
+	Host string
+	Port int
 }
 
 func Load() Config {
@@ -36,8 +42,13 @@ func Load() Config {
 			MaxIdleTime:  env.GetStringEnv("DB_MAX_IDLE_TIME", "15m"),
 		},
 		AI: AI{
-			BaseURL: env.GetStringEnv("AI_MODEL_URL", "http://localhost:11434"),
-			Name:    env.GetStringEnv("AI_MODEL_NAME", "qwen3.5:4b"),
+			BaseURL:        env.GetStringEnv("AI_MODEL_URL", "http://localhost:11434"),
+			Name:           env.GetStringEnv("AI_MODEL_NAME", "qwen3.5:4b"),
+			EmBeddingModel: env.GetStringEnv("AI_MODEL_EMBEDDING_NAME", "nomic-embed-text:v1.5"),
+		},
+		QdrantDB: QdrantConfig{
+			Host: env.GetStringEnv("QDRANT_DB_HOST", "localhost"),
+			Port: env.GetIntEnv("QDRANT_DB_PORT", 6334),
 		},
 	}
 }

@@ -32,10 +32,19 @@ func main() {
 	defer database.Close()
 	logger.Info("Database connection pool established")
 
+	qdrantClient, err := db.NewQdrantClient(cfg.QdrantDB.Host, cfg.QdrantDB.Port)
+	if err != nil {
+		logger.Fatal(err)
+	}
+
+	defer qdrantClient.Close()
+	logger.Info("Qdrant Database connection pool established")
+
 	app := app.New(
 		cfg,
 		logger,
 		database,
+		qdrantClient,
 	)
 	// Create Router
 	mux := server.NewRouter(app)
