@@ -108,7 +108,11 @@ export function AuthDialog({
         <div className="px-6 pt-7 pb-6">
           <DialogHeader className="items-center text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-black text-primary-foreground shadow-[inset_0_-5px_6.6px_0_rgba(0,0,0,0.25)]">
-              <img src="/images/logo/logo-white.png" alt="PM Tools" className="h-6 w-6" />
+              <img
+                src="/images/logo/logo-white.png"
+                alt="PM Tools"
+                className="h-6 w-6"
+              />
             </div>
             <DialogTitle className="text-xl">{headerTitle}</DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground">
@@ -124,7 +128,7 @@ export function AuthDialog({
                 className="w-full h-11 justify-center gap-2 rounded-xl border-border bg-muted/20"
                 onClick={() => handleSocialClick("google")}
               >
-                <GoogleIcon className="h-4 w-4" />
+                <GoogleIcon/>
                 Continue with Google
               </Button>
               {lastUsedProvider === "google" && (
@@ -343,25 +347,32 @@ export function AuthDialog({
   );
 }
 
-function GoogleIcon({ className }: { className?: string }) {
+function GoogleIcon() {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden className={className}>
-      <path
-        fill="#EA4335"
-        d="M12 10.2v3.9h5.5c-.2 1.3-1.6 3.8-5.5 3.8-3.3 0-6-2.7-6-6s2.7-6 6-6c1.9 0 3.1.8 3.8 1.4l2.6-2.6C16.6 3 14.5 2 12 2 6.9 2 2.8 6.1 2.8 11.9S6.9 21.8 12 21.8c6.9 0 8.6-4.8 8.6-7.2 0-.5-.1-1-.2-1.4H12z"
-      />
-      <path
-        fill="#34A853"
-        d="M3.8 7.1l3.2 2.3C7.9 7.2 9.8 5.8 12 5.8c1.9 0 3.1.8 3.8 1.4l2.6-2.6C16.6 3 14.5 2 12 2 8.2 2 5 4.2 3.8 7.1z"
-      />
-      <path
-        fill="#FBBC05"
-        d="M12 21.8c3.4 0 6.2-1.1 8.3-3l-3.8-2.9c-1 .7-2.3 1.2-4.5 1.2-3.2 0-5.9-2.1-6.8-5l-3.2 2.5c1.2 3.6 4.7 6.2 10 6.2z"
-      />
+    <svg
+      className="th8JXc"
+      xmlns="https://www.w3.org/2000/svg"
+      width="20"
+      height="24"
+      viewBox="0 0 40 48"
+      aria-hidden="true"
+    >
       <path
         fill="#4285F4"
-        d="M20.6 14.6c.1-.4.2-.9.2-1.4 0-.5-.1-1-.2-1.4H12v2.8h5.5c-.3 1.5-1.3 2.7-2.8 3.5l3.8 2.9c2.2-2 2.9-4.9 2.9-7.4z"
-      />
+        d="M39.2 24.45c0-1.55-.16-3.04-.43-4.45H20v8h10.73c-.45 2.53-1.86 4.68-4 6.11v5.05h6.5c3.78-3.48 5.97-8.62 5.97-14.71z"
+      ></path>
+      <path
+        fill="#34A853"
+        d="M20 44c5.4 0 9.92-1.79 13.24-4.84l-6.5-5.05C24.95 35.3 22.67 36 20 36c-5.19 0-9.59-3.51-11.15-8.23h-6.7v5.2C5.43 39.51 12.18 44 20 44z"
+      ></path>
+      <path
+        fill="#FABB05"
+        d="M8.85 27.77c-.4-1.19-.62-2.46-.62-3.77s.22-2.58.62-3.77v-5.2h-6.7C.78 17.73 0 20.77 0 24s.78 6.27 2.14 8.97l6.71-5.2z"
+      ></path>
+      <path
+        fill="#E94235"
+        d="M20 12c2.93 0 5.55 1.01 7.62 2.98l5.76-5.76C29.92 5.98 25.39 4 20 4 12.18 4 5.43 8.49 2.14 15.03l6.7 5.2C10.41 15.51 14.81 12 20 12z"
+      ></path>
     </svg>
   );
 }
