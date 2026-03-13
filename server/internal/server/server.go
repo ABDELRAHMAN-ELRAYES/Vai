@@ -9,11 +9,20 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/docs"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/app"
 	"github.com/go-chi/chi/v5"
 )
 
+const version = "0.0.1"
+
+// Run starts the HTTP server with graceful shutdown.
 func Run(app *app.Application, mux *chi.Mux) error {
+
+	docs.SwaggerInfo.Version = version
+	docs.SwaggerInfo.Host = app.Config.APIURL
+	docs.SwaggerInfo.BasePath = "/api/v1"
+
 	server := &http.Server{
 		Addr:         app.Config.Addr,
 		Handler:      mux,
@@ -21,8 +30,8 @@ func Run(app *app.Application, mux *chi.Mux) error {
 		ReadTimeout:  10 * time.Second,
 		IdleTimeout:  time.Minute,
 	}
-	// graceful shutdown
 
+	// graceful shutdown
 	shutdown := make(chan error)
 
 	go func() {

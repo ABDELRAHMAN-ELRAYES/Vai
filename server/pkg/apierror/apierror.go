@@ -1,9 +1,16 @@
 package apierror
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/httputil"
+)
+
+// Define Some Custom Errors for more readable Error Handling
+var (
+	ErrNotFound = errors.New("recrecordord not found")
+	ErrConflict = errors.New("resource already exists")
 )
 
 // Error represents a typed API error response.
@@ -57,5 +64,3 @@ func RateLimitExceeded(logger Logger, w http.ResponseWriter, r *http.Request, re
 	w.Header().Set("Retry-After", retryAfter)
 	_ = Write(w, http.StatusTooManyRequests, "rate limit exceeded, retry after: "+retryAfter)
 }
-
-

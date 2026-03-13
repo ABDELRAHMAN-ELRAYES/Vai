@@ -1,179 +1,362 @@
-# vai
+# Vai
 
-An AI Knowledge system. Upload documents, ask questions, get AI-generated answers — all running locally with no external API required.
+**Vai** is a self-hosted, privacy-first AI document assistant. Upload your documents, ask questions in plain language, and get accurate answers grounded in your own content — no cloud APIs, no data leaving your machine.
+
+Built with Go, Ollama, Qdrant, and open-source embedding models, Vai gives you the full power of a retrieval-augmented generation (RAG) system that you own and control entirely.
+
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Architecture](#architecture)
+- [How It Works](#how-it-works)
+- [Tech Stack](#tech-stack)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Running the Stack](#running-the-stack)
+- [API Reference](#api-reference)
+- [Configuration](#configuration)
+- [Project Structure](#project-structure)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
+## Overview
+
+Most AI assistants send your data to third-party servers. Vai is different. Every component — the language model, the embedding model, and the vector database — runs locally on your own infrastructure. Your documents never leave your environment.
+
+Vai is designed for developers, teams, and organizations that need AI-powered document search and Q&A without compromising on privacy or data sovereignty.
 
 ---
 
 ## Features
 
-- Upload and query PDF, Markdown, and plain text documents
-- Semantic search over document content using vector embeddings
-- AI answers grounded in your documents via a RAG pipeline
-- Streaming responses for a real-time chat experience
-- Fully containerized — runs locally with Docker
+- **Fully self-hosted** — no external API calls, no data sent to third parties
+- **Semantic search** — find relevant content by meaning, not just keywords
+- **RAG pipeline** — answers are grounded in your documents, not hallucinated
+- **Streaming responses** — real-time token streaming via Server-Sent Events
+- **Multi-document support** — upload multiple documents and query across all of them or filter to a specific one
+- **Overlap-aware chunking** — intelligent document splitting that preserves context at boundaries
+- **REST API** — clean HTTP interface, easy to integrate with any frontend
+- **Docker-ready** — full containerized deployment with a single command
 
 ---
 
-## System Architecture
+## Architecture
 
 ```
-Frontend (React + Vite + Tailwind)
-        ↓
-Backend API (Go)
-        ↓
-Vector DB (Qdrant)
-        ↓
-LLM service (Ollama)
-        ↓
-AI model (Llama 3)
+┌─────────────────────────────────────────────────────────────┐
+│                        Frontend / Client                     │
+│                  (chat UI, curl, any HTTP client)            │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│                        Backend API (Go)                      │
+│         Upload · Chat · Stream · Search endpoints            │
+└────────┬─────────────────────┬───────────────────┬──────────┘
+         │                     │                   │
+         ▼                     ▼                   ▼
+┌─────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+│  Chunker        │  │  Embedding Model │  │  LLM (Ollama)    │
+│  (text splitter)│  │  (nomic-embed)   │  │  (llama3)        │
+└────────┬────────┘  └────────┬─────────┘  └──────────────────┘
+         │                    │
+         ▼                    ▼
+┌─────────────────────────────────────────────────────────────┐
+│                     Qdrant Vector Database                   │
+│               (stores and searches embeddings)               │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### Document Flow
+---
+
+## How It Works
+
+Vai operates across two distinct workflows.
+
+### Document Ingestion
+
+When you upload a document, Vai processes it through a pipeline before anything is stored:
 
 ```
-Upload document
-        ↓
-Split into chunks
-        ↓
-Generate embeddings
-        ↓
-Store in vector DB
-        ↓
-User asks question
-        ↓
-Embed question → search vector DB
-        ↓
-Retrieve relevant chunks
-        ↓
-Inject into LLM prompt
-        ↓
-Stream answer to user
+Raw document
+    ↓
+Split into overlapping chunks (~500 chars each, 100-char overlap)
+    ↓
+Each chunk passed through the embedding model
+    ↓
+Each chunk becomes a vector of 768 numbers representing its meaning
+    ↓
+Vectors stored in Qdrant alongside the original chunk text and metadata
 ```
+
+The overlap between chunks is intentional — a sentence at the boundary of two chunks appears in both, so no context is lost at split points.
+
+### Question Answering
+
+When you ask a question, Vai runs a shorter version of the same process:
+
+```
+User question
+    ↓
+Question embedded using the same model (produces a vector)
+    ↓
+Qdrant finds the top-K most semantically similar stored chunks
+    ↓
+Chunks assembled into a prompt alongside the question
+    ↓
+LLM generates an answer grounded in those chunks
+    ↓
+Response streamed token-by-token back to the client
+```
+
+The LLM never sees the full document — only the retrieved chunks most relevant to the question. This keeps responses fast, accurate, and within the model's context window.
 
 ---
 
 ## Tech Stack
 
-| Layer | Tool |
-|---|---|
-| Frontend | React, Vite, Tailwind CSS |
-| Backend | Go |
-| Local LLM | [Ollama](https://ollama.com) + Llama 3 |
-| Embeddings | [Hugging Face](https://huggingface.co) sentence transformers |
-| Vector DB | [Qdrant](https://qdrant.tech) |
-| Deployment | Docker + Docker Compose |
+| Component | Technology | Purpose |
+|-----------|-----------|---------|
+| Backend | Go | API server, pipeline orchestration |
+| LLM | Ollama + llama3 | Answer generation |
+| Embeddings | Ollama + nomic-embed-text | Semantic vector generation |
+| Vector DB | Qdrant | Similarity search |
+| Deployment | Docker + Docker Compose | Containerized infrastructure |
 
 ---
 
-## Prerequisites
+## Getting Started
 
-- Docker and Docker Compose
-- Go 1.22+
-- Node.js 18+
-- 16GB+ RAM
+### Prerequisites
 
----
+- [Docker](https://docs.docker.com/get-docker/) and Docker Compose
+- [Go 1.22+](https://go.dev/dl/) (for local development)
+- [Ollama](https://ollama.com/) installed and running
 
-## Quick Start
+### Installation
 
 ```bash
-git clone https://github.com/your-username/vai.git
+# Clone the repository
+git clone https://github.com/yourname/vai.git
 cd vai
-ollama pull qwen3.5:4b
+
+# Install Go dependencies
+go mod tidy
+```
+
+### Running the Stack
+
+**1. Start Qdrant**
+
+```bash
+docker run -p 6333:6333 qdrant/qdrant
+```
+
+**2. Start Ollama and pull the required models**
+
+```bash
+ollama serve
+
+# In a separate terminal:
+ollama pull llama3              # language model for generating answers
+ollama pull nomic-embed-text    # embedding model for semantic search
+```
+
+**3. Start the Vai server**
+
+```bash
+go run main.go
+```
+
+The server will be available at `http://localhost:8080`.
+
+**Or run everything with Docker Compose**
+
+```bash
 docker compose up
 ```
 
-Visit `http://localhost:5173`.
-
 ---
 
-## Docker Compose
+## API Reference
 
-```yaml
-services:
-  backend:
-    build: ./backend
-    ports:
-      - "8080:8080"
-    depends_on:
-      - qdrant
-      - ollama
+### Upload a Document
 
-  qdrant:
-    image: qdrant/qdrant
-    ports:
-      - "6333:6333"
-    volumes:
-      - qdrant_data:/qdrant/storage
-
-  ollama:
-    image: ollama/ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-
-volumes:
-  qdrant_data:
-  ollama_data:
+```
+POST /documents/upload
+Content-Type: multipart/form-data
 ```
 
----
+```bash
+curl -X POST http://localhost:8080/documents/upload \
+  -F "file=@/path/to/document.txt"
+```
 
-## API Endpoints
-
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/api/upload` | Upload a document |
-| `POST` | `/api/chat` | Ask a question |
-| `GET` | `/api/stream` | Stream a response via SSE |
-
-### Example
+**Response**
 
 ```json
-POST /api/chat
 {
-  "question": "How does authentication work?",
-  "history": []
+  "document_id": "document",
+  "chunks": 14,
+  "source": "document.txt"
 }
 ```
 
 ---
 
-## Development
+### Ask a Question
 
-### Backend (Go)
-
-```bash
-cd backend
-go mod tidy
-go run main.go
+```
+POST /chat
+Content-Type: application/json
 ```
 
-### Frontend (React + Vite)
+```bash
+curl -X POST http://localhost:8080/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "question": "How does authentication work?",
+    "top_k": 5
+  }'
+```
+
+**Request Body**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `question` | string | yes | The question to answer |
+| `top_k` | int | no | Number of chunks to retrieve (default: 5) |
+| `document_id` | string | no | Filter search to a specific document |
+
+**Response**
+
+```json
+{
+  "answer": "Based on the documents, authentication works by..."
+}
+```
+
+---
+
+### Stream a Response
+
+```
+GET /chat/stream?question=...&top_k=5&document_id=...
+```
 
 ```bash
-cd frontend
-npm install
-npm run dev
+curl -N "http://localhost:8080/chat/stream?question=How+does+auth+work&top_k=5"
+```
+
+Returns a stream of Server-Sent Events (SSE):
+
+```
+data: Based
+data:  on
+data:  the
+data:  documents...
+data: [DONE]
+```
+
+---
+
+### Search (Debug)
+
+Returns raw retrieved chunks without LLM generation — useful for inspecting what the retrieval layer finds.
+
+```
+POST /search
+Content-Type: application/json
+```
+
+```bash
+curl -X POST http://localhost:8080/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "authentication", "top_k": 3}'
 ```
 
 ---
 
 ## Configuration
 
-| Variable | Default | Description |
-|---|---|---|
-| `OLLAMA_HOST` | `http://ollama:11434` | Ollama service URL |
-| `QDRANT_HOST` | `http://qdrant:6333` | Qdrant service URL |
-| `EMBEDDING_MODEL` | `all-MiniLM-L6-v2` | Embedding model |
-| `LLM_MODEL` | `llama3` | Ollama model |
-| `CHUNK_SIZE` | `500` | Tokens per chunk |
-| `CHUNK_OVERLAP` | `50` | Overlap between chunks |
-| `TOP_K` | `5` | Chunks retrieved per query |
+Configuration is set in `main.go` via the `rag.Config` struct. All values have sensible defaults.
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `ChunkSize` | `500` | Target character count per chunk |
+| `ChunkOverlap` | `100` | Characters of overlap between consecutive chunks |
+| `EmbeddingModel` | `nomic-embed-text` | Ollama embedding model |
+| `ChatModel` | `llama3` | Ollama language model |
+| `QdrantURL` | `http://localhost:6333` | Qdrant server address |
+| `OllamaURL` | `http://localhost:11434` | Ollama server address |
+| `Collection` | `documents` | Qdrant collection name |
+| `VectorSize` | `768` | Must match your embedding model output dimension |
+
+---
+
+## Project Structure
+
+```
+vai/
+├── main.go                 # Entry point — wires all layers together
+├── go.mod
+├── go.sum
+│
+├── chunker/
+│   └── chunker.go          # Splits raw text into overlapping chunks
+│
+├── embeddings/
+│   └── embeddings.go       # Generates vectors via Ollama or HuggingFace
+│
+├── vectorstore/
+│   └── qdrant.go           # Qdrant client — upsert, search, delete
+│
+├── rag/
+│   └── pipeline.go         # Full RAG pipeline — ingest, search, answer, stream
+│
+└── handlers/
+    └── handlers.go         # HTTP handlers — upload, chat, stream, search
+```
+
+---
+
+## Roadmap
+
+- [ ] PDF and DOCX file support
+- [ ] Web UI (chat interface)
+- [ ] Conversation history and multi-turn context
+- [ ] Multiple embedding model backends (HuggingFace, OpenAI-compatible)
+- [ ] Document management endpoints (list, delete, re-index)
+- [ ] Authentication and API key support
+- [ ] Response caching for repeated questions
+- [ ] Monitoring dashboard (latency, error rates, memory usage)
+- [ ] Helm chart for Kubernetes deployment
+
+---
+
+## Contributing
+
+Contributions are welcome. Please open an issue first to discuss what you would like to change, then submit a pull request against the `main` branch.
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/your-feature`)
+3. Commit your changes (`git commit -m 'add your feature'`)
+4. Push to the branch (`git push origin feature/your-feature`)
+5. Open a Pull Request
 
 ---
 
 ## License
 
-MIT
+MIT License. See [LICENSE](LICENSE) for details.
+
+---
+
+> Built with Go · Powered by open-source AI · Runs entirely on your machine

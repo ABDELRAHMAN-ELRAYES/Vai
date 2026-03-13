@@ -1,5 +1,11 @@
 package users
 
+import (
+	"context"
+
+	"github.com/google/uuid"
+)
+
 type Service struct {
 	repo *Repository
 }
@@ -7,7 +13,10 @@ type Service struct {
 func NewService(repo *Repository) *Service {
 	return &Service{repo: repo}
 }
+func (service *Service) Create(ctx context.Context, user *User) error {
+	return service.repo.Create(ctx, user)
+}
 
-func (s *Service) GetUser(id string) (*User, error) {
-	return s.repo.FindByID(id)
+func (service *Service) GetUser(ctx context.Context, id uuid.UUID) (*User, error) {
+	return service.repo.GetByID(ctx, id)
 }

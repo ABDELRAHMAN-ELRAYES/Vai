@@ -1,8 +1,10 @@
 package server
 
 import (
+	"fmt"
 	"time"
 
+	_ "github.com/ABDELRAHMAN-ELRAYES/Vai/docs"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/app"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/env"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules"
@@ -10,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 func NewRouter(app *app.Application) *chi.Mux {
@@ -32,6 +35,9 @@ func NewRouter(app *app.Application) *chi.Mux {
 	r.Use(middleware.Timeout(60 * time.Second))
 
 	r.Route("/api/v1", func(r chi.Router) {
+		docsURL := fmt.Sprintf("%s/swagger/doc.json", app.Config.Addr)
+		r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL(docsURL)))
+
 		modules.Register(r, app)
 	})
 

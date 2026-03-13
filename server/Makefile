@@ -30,4 +30,4 @@ gen-docs:
 	@swag init -g cmd/api/main.go -d . && swag fmt
 
 
-# migrate -path ./cmd/migrate/migrations -database "$DB_ADDR" force 10   
+# migrate -path ./migrations -database "$DB_ADDR" force 1 

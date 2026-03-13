@@ -5,6 +5,8 @@ import (
 	"database/sql"
 
 	"github.com/qdrant/go-client/qdrant"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type Repository struct {
@@ -27,14 +29,15 @@ func NewRepository(db *sql.DB, qdrantClient *QdrantClient) *Repository {
 func (repo *Repository) InitCollection() error {
 	ctx := context.Background()
 
-	// Check if the collection already exists before Creating it
-	exists, err := repo.qdrant.client.GetCollectionInfo(ctx, repo.qdrant.collectionName)
-	if err != nil {
-		return err
+	// Check if the collection already exists before Creating it (return grpc status)
+	_, err := repo.qdrant.client.GetCollectionInfo(ctx, repo.qdrant.collectionName)
+
+	if err == nil {
+		return nil
 	}
 
-	if exists != nil {
-		return nil
+	if status.Code(err) != codes.NotFound {
+		return err
 	}
 
 	err = repo.qdrant.client.CreateCollection(ctx, &qdrant.CreateCollection{

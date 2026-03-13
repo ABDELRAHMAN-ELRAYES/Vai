@@ -62,8 +62,8 @@ export function AppSidebar() {
       <SidebarHeader className="p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-black text-primary-foreground shadow-[inset_0_-5px_6.6px_0_rgba(0,0,0,0.25)]">
-              <img src="/images/logo/logo-white.png" alt="Logo" className="h-6 w-6" />
+            <div className="flexitems-center justify-center rounded-lg ">
+              <img src="/images/logo/logo.png" alt="Logo" className="h-12 w-12" />
             </div>
             <div className="flex flex-col">
               <span className="text-sm font-semibold">Vai</span>
