@@ -6,7 +6,8 @@ import (
 )
 
 type Module struct {
-	handler *Handler
+	Handler *Handler
+	Service *Service
 }
 
 func New(app *app.Application) *Module {
@@ -16,7 +17,8 @@ func New(app *app.Application) *Module {
 	handler := NewHandler(app, service)
 
 	return &Module{
-		handler: handler,
+		Handler: handler,
+		Service: service,
 	}
 }
 
@@ -25,5 +27,5 @@ func (m *Module) Name() string {
 }
 
 func (m *Module) RegisterRoutes(r chi.Router) {
-	RegisterRoutes(r, m.handler)
+	RegisterRoutes(r, m.Handler)
 }

@@ -75,3 +75,36 @@ func (repo *Repository) GetByID(ctx context.Context, id uuid.UUID) (*User, error
 
 	return user, nil
 }
+func (repo *Repository) GetByEmail(ctx context.Context, email string) (*User, error) {
+
+	query := `SELECT id, first_name, last_name, email, created_at, is_active FROM users WHERE email=$1`
+
+	ctx, cancel := context.WithTimeout(ctx, queryTimeoutDuration)
+	defer cancel()
+
+	user := &User{}
+
+	err := repo.db.QueryRowContext(
+		ctx,
+		query,
+		email,
+	).Scan(
+		&user.ID,
+		&user.FirstName,
+		&user.LastName,
+		&user.Email,
+		&user.CreatedAt,
+		&user.IsActive,
+	)
+
+	if err != nil {
+		switch err {
+		case sql.ErrNoRows:
+			return nil, apierror.ErrNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	return user, nil
+}

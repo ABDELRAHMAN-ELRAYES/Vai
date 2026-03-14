@@ -1,6 +1,10 @@
 package config
 
-import "github.com/ABDELRAHMAN-ELRAYES/Vai/internal/env"
+import (
+	"time"
+
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/env"
+)
 
 type Config struct {
 	Addr          string
@@ -11,6 +15,7 @@ type Config struct {
 	AI            AI
 	QdrantDB      QdrantConfig
 	Authenticator AuthenticatorConfig
+	Mail          Mail
 }
 
 // DB holds database related configuration.
@@ -33,9 +38,14 @@ type AuthenticatorConfig struct {
 	JWT JWTConfig
 }
 type JWTConfig struct {
-	Secret string
-	Iss    string
-	Aud    string
+	Secret       string
+	Iss          string
+	Aud          string
+	SessionExp   time.Duration
+	MailTokenExp time.Duration
+}
+type Mail struct {
+	Expiry time.Duration
 }
 
 func Load() Config {
@@ -61,10 +71,15 @@ func Load() Config {
 		},
 		Authenticator: AuthenticatorConfig{
 			JWT: JWTConfig{
-				Secret: env.GetStringEnv("AUTH_JWT_SECRET", ""),
-				Iss:    env.GetStringEnv("AUTH_JWT_ISSUER", "vai-server"),
-				Aud:    env.GetStringEnv("AUTH_JWT_AUDIENCE", "users"),
+				Secret:       env.GetStringEnv("AUTH_JWT_SECRET", ""),
+				Iss:          env.GetStringEnv("AUTH_JWT_ISSUER", "vai-server"),
+				Aud:          env.GetStringEnv("AUTH_JWT_AUDIENCE", "users"),
+				SessionExp:   90 * 24 * time.Hour,
+				MailTokenExp: 15 * time.Minute,
 			},
+		},
+		Mail: Mail{
+			Expiry: 73 * time.Hour,
 		},
 	}
 }

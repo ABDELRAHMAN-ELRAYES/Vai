@@ -4,11 +4,9 @@ import (
 	"net/http"
 
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/app"
-	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/validator"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/apierror"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/httputil"
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 )
 
 type Handler struct {
@@ -36,44 +34,37 @@ func NewHandler(app *app.Application, service *Service) *Handler {
 //	@Failure		500		{object}	error
 //	@Router			/users [post]
 func (handler *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
+	logger := handler.app.Logger
+
 	// Parse the reqquest body
 	var payload CreateUserPayload
 
 	if err := httputil.ReadJSON(w, r, &payload); err != nil {
-		apierror.BadRequest(handler.app.Logger, w, r, err)
+		apierror.BadRequest(logger, w, r, err)
 		return
 	}
-
-	// Validate request body
-	if err := validator.Validate.Struct(payload); err != nil {
-		apierror.BadRequest(handler.app.Logger, w, r, err)
-		return
-	}
-
-	// Create user model
-	user := &User{
-		FirstName: payload.FirstName,
-		LastName:  payload.LastName,
-		Email:     payload.Email,
-	}
-	// - Hash the user plaintext password
-	if err := user.Password.Set(payload.Password); err != nil {
-		apierror.InternalServerError(handler.app.Logger, w, r, err)
-		return
-	}
-	// - Extract request context
+	// Extract request context
 	ctx := r.Context()
 
-	//  Store user in the DB
-	if err := handler.service.Create(ctx, user); err != nil {
-		apierror.InternalServerError(handler.app.Logger, w, r, err)
-		return
+	// Create User
+	user, err := handler.service.Create(ctx, &payload)
+	if err != nil {
+		switch err {
+		case err, apierror.ErrBadRequest:
+			apierror.BadRequest(logger, w, r, err)
+			return
+		case apierror.ErrConflict:
+			apierror.Conflict(logger, w, r, err)
+			return
+		default:
+			apierror.InternalServerError(logger, w, r, err)
+			return
+		}
 	}
 
 	// Attach the data to the response body
-
 	if err := httputil.JSONResponse(w, http.StatusCreated, user, "User has been created successfully, This is his data."); err != nil {
-		apierror.InternalServerError(handler.app.Logger, w, r, err)
+		apierror.InternalServerError(logger, w, r, err)
 		return
 	}
 
@@ -94,32 +85,31 @@ func (handler *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 //	@Security		ApiKeyAuth
 //	@Router			/users/{userID} [get]
 func (handler *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
+	logger := handler.app.Logger
 
 	id := chi.URLParam(r, "userID")
-	uID, err := uuid.Parse(id)
-	if err != nil {
-		apierror.BadRequest(handler.app.Logger, w, r, err)
-		return
-	}
 
 	ctx := r.Context()
 
-	user, err := handler.service.GetUser(ctx, uID)
+	user, err := handler.service.GetUser(ctx, id)
 
 	if err != nil {
 		switch err {
+		case apierror.ErrBadRequest:
+			apierror.BadRequest(logger, w, r, err)
+			return
 		case apierror.ErrNotFound:
-			apierror.NotFound(handler.app.Logger, w, r, err)
+			apierror.NotFound(logger, w, r, err)
+			return
 		default:
-			apierror.InternalServerError(handler.app.Logger, w, r, err)
-
+			apierror.InternalServerError(logger, w, r, err)
+			return
 		}
-		return
 	}
 
 	// Attach the data to the response body
 	if err := httputil.JSONResponse(w, http.StatusOK, user, "This is the Data of the user with entered ID"); err != nil {
-		apierror.InternalServerError(handler.app.Logger, w, r, err)
+		apierror.InternalServerError(logger, w, r, err)
 		return
 	}
 }
