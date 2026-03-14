@@ -3,13 +3,14 @@ package config
 import "github.com/ABDELRAHMAN-ELRAYES/Vai/internal/env"
 
 type Config struct {
-	Addr        string
-	Env         string
-	APIURL      string
-	FrontendURL string
-	DB          DB
-	AI          AI
-	QdrantDB    QdrantConfig
+	Addr          string
+	Env           string
+	APIURL        string
+	FrontendURL   string
+	DB            DB
+	AI            AI
+	QdrantDB      QdrantConfig
+	Authenticator AuthenticatorConfig
 }
 
 // DB holds database related configuration.
@@ -27,6 +28,14 @@ type AI struct {
 type QdrantConfig struct {
 	Host string
 	Port int
+}
+type AuthenticatorConfig struct {
+	JWT JWTConfig
+}
+type JWTConfig struct {
+	Secret string
+	Iss    string
+	Aud    string
 }
 
 func Load() Config {
@@ -49,6 +58,13 @@ func Load() Config {
 		QdrantDB: QdrantConfig{
 			Host: env.GetStringEnv("QDRANT_DB_HOST", "localhost"),
 			Port: env.GetIntEnv("QDRANT_DB_PORT", 6334),
+		},
+		Authenticator: AuthenticatorConfig{
+			JWT: JWTConfig{
+				Secret: env.GetStringEnv("AUTH_JWT_SECRET", ""),
+				Iss:    env.GetStringEnv("AUTH_JWT_ISSUER", "vai-server"),
+				Aud:    env.GetStringEnv("AUTH_JWT_AUDIENCE", "users"),
+			},
 		},
 	}
 }

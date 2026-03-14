@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/app"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/auth"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/config"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/db"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/server"
@@ -37,6 +38,7 @@ func main() {
 		_ = logger.Sync()
 	}()
 
+	// Connect to DB
 	database, err := db.New(
 		cfg.DB.Addr,
 		cfg.DB.MaxOpenConns,
@@ -51,6 +53,7 @@ func main() {
 	defer database.Close()
 	logger.Info("Database connection pool established")
 
+	// Create a Qdrant DB Client
 	qdrantClient, err := db.NewQdrantClient(cfg.QdrantDB.Host, cfg.QdrantDB.Port)
 	if err != nil {
 		logger.Fatal(err)
@@ -59,11 +62,15 @@ func main() {
 	defer qdrantClient.Close()
 	logger.Info("Qdrant Database connection pool established")
 
+	// Create JWT Authenticator
+	authenticator := auth.NewJWTuthenticator(cfg.Authenticator.JWT.Secret, cfg.Authenticator.JWT.Iss, cfg.Authenticator.JWT.Aud)
+
 	app := app.New(
 		cfg,
 		logger,
 		database,
 		qdrantClient,
+		authenticator,
 	)
 	// Create Router
 	mux := server.NewRouter(app)
