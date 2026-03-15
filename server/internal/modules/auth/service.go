@@ -12,6 +12,7 @@ import (
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/users"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/validator"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/apierror"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 type Service struct {
@@ -126,4 +127,46 @@ func (service *Service) ActivateUser(ctx context.Context, token string) error {
 
 		return nil
 	})
+}
+
+func (service *Service) Authenticate(ctx context.Context, payload AuthenticatePayload) (*UserWithToken, error) {
+
+	// Validate the payload
+	if err := validator.Validate.Struct(payload); err != nil {
+		return nil, apierror.ErrBadRequest
+	}
+
+	// Check if the user exists
+	user, err := service.userService.GetUserByEmail(ctx, payload.Email)
+	if err != nil {
+		return nil, err
+	}
+	// Compare the password
+	if err := user.Password.Compare(payload.Password); err != nil {
+		return nil, apierror.ErrUnauthorized
+	}
+	// Formm the JWT claims
+	claims := UserClaims{
+		UserID: user.ID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(service.cfg.Authenticator.JWT.SessionExp)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			NotBefore: jwt.NewNumericDate(time.Now()),
+			Issuer:    service.cfg.Authenticator.JWT.Iss,
+		},
+	}
+
+	// Generate a JWT
+	token, err := service.authenticator.GenerateToken(claims)
+
+	if err != nil {
+		return nil, err
+	}
+
+	userWithToken := &UserWithToken{
+		User:  user,
+		Token: token,
+	}
+
+	return userWithToken, nil
 }

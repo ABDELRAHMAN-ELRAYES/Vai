@@ -1,15 +1,29 @@
 package users
 
-import "golang.org/x/crypto/bcrypt"
+import (
+	"golang.org/x/crypto/bcrypt"
+)
 
 type User struct {
 	ID        string   `json:"id"`
 	FirstName string   `json:"first_name"`
 	LastName  string   `json:"last_name"`
 	Email     string   `json:"email"`
-	Password  Password `json:"-"` // The password musn't be returned even on the hashed state
 	CreatedAt string   `json:"created_at"`
 	IsActive  bool     `json:"is_active"`
+	Password  Password `json:"-"` // The password musn't be returned even on the hashed state
+	
+}
+
+func (u *User) ToResponse() *UserResponse {
+	return &UserResponse{
+		ID:        u.ID,
+		FirstName: u.FirstName,
+		LastName:  u.LastName,
+		Email:     u.Email,
+		CreatedAt: u.CreatedAt,
+		IsActive:  u.IsActive,
+	}
 }
 
 type Password struct {

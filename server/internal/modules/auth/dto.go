@@ -8,7 +8,13 @@ type RegisterUserPayload struct {
 	Email     string `json:"email" validate:"required,email,max=255"`
 	Password  string `json:"password" validate:"required,min=3,max=72"`
 }
-type UserWithToken struct {
-	User  *users.User `json:"user"`
-	Token string      `json:"token"`
+
+type AuthenticatePayload struct {
+	Email    string `json:"email" validate:"required,email,max=255"`
+	Password string `json:"password" validate:"required,min=3,max=72"`
+}
+
+type UserWithTokenResponse struct {
+	User  *users.UserResponse `json:"user"`
+	Token string              `json:"token"`
 }

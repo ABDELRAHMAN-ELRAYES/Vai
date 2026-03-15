@@ -1,5 +1,18 @@
 basePath: /api/v1
 definitions:
+  auth.AuthenticatePayload:
+    properties:
+      email:
+        maxLength: 255
+        type: string
+      password:
+        maxLength: 72
+        minLength: 3
+        type: string
+    required:
+    - email
+    - password
+    type: object
   auth.RegisterUserPayload:
     properties:
       email:
@@ -96,6 +109,41 @@ paths:
           description: Internal Server Error
           schema: {}
       summary: Activate a user account
+      tags:
+      - authentication
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticates a user using email and password, returns the user
+        data and sets an HttpOnly JWT cookie.
+      parameters:
+      - description: Login credentials
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/auth.AuthenticatePayload'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User authenticated successfully
+          schema:
+            $ref: '#/definitions/auth.UserWithToken'
+        "400":
+          description: Bad Request
+          schema: {}
+        "401":
+          description: Unauthorized
+          schema: {}
+        "404":
+          description: Not Found
+          schema: {}
+        "500":
+          description: Internal Server Error
+          schema: {}
+      summary: Authenticate user
       tags:
       - authentication
   /auth/register:

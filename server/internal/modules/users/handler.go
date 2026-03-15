@@ -62,8 +62,10 @@ func (handler *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	userResp := user.ToResponse()
+
 	// Attach the data to the response body
-	if err := httputil.JSONResponse(w, http.StatusCreated, user, "User has been created successfully, This is his data."); err != nil {
+	if err := httputil.JSONResponse(w, http.StatusCreated, userResp, "User has been created successfully, This is his data."); err != nil {
 		apierror.InternalServerError(logger, w, r, err)
 		return
 	}
@@ -106,9 +108,10 @@ func (handler *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	userResp := user.ToResponse()
 
 	// Attach the data to the response body
-	if err := httputil.JSONResponse(w, http.StatusOK, user, "This is the Data of the user with entered ID"); err != nil {
+	if err := httputil.JSONResponse(w, http.StatusOK, userResp, "This is the Data of the user with entered ID"); err != nil {
 		apierror.InternalServerError(logger, w, r, err)
 		return
 	}

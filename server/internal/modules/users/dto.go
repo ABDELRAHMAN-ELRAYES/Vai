@@ -6,3 +6,13 @@ type CreateUserPayload struct {
 	Email     string `jsono:"email" validate:"required"`
 	Password  string `jsono:"password" validate:"required"`
 }
+
+
+type UserResponse struct {
+	ID        string `json:"id"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	Email     string `json:"email"`
+	CreatedAt string `json:"created_at"`
+	IsActive  bool   `json:"is_active"`
+}

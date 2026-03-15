@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/app"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/auth"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/apierror"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/httputil"
 	"github.com/go-chi/chi/v5"
@@ -61,8 +62,13 @@ func (handler *Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	userTokenResp := &UserWithTokenResponse{
+		User:  userToken.User.ToResponse(),
+		Token: userToken.Token,
+	}
+
 	// Attach the data to the response body
-	if err := httputil.JSONResponse(w, http.StatusCreated, userToken, "User has Registered successfully, This is his data."); err != nil {
+	if err := httputil.JSONResponse(w, http.StatusCreated, userTokenResp, "User has Registered successfully, This is his data."); err != nil {
 		apierror.InternalServerError(logger, w, r, err)
 		return
 	}
@@ -96,17 +102,76 @@ func (handler *Handler) ActivateUser(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch err {
 		case apierror.ErrNotFound:
-			apierror.NotFound(handler.app.Logger, w, r, err)
+			apierror.NotFound(logger, w, r, err)
 			return
 		default:
-			apierror.InternalServerError(handler.app.Logger, w, r, err)
+			apierror.InternalServerError(logger, w, r, err)
 			return
 		}
 	}
 
 	// send a response
 	if err := httputil.JSONResponse(w, http.StatusNoContent, nil, "User was activated successfully."); err != nil {
-		apierror.InternalServerError(handler.app.Logger, w, r, err)
+		apierror.InternalServerError(logger, w, r, err)
+		return
+	}
+}
+
+// Authenticate godoc
+//
+//	@Summary		Authenticate user
+//	@Description	Authenticates a user using email and password, returns the user data and sets an HttpOnly JWT cookie.
+//	@Tags			authentication
+//	@Accept			json
+//	@Produce		json
+//	@Param			payload	body		AuthenticatePayload	true	"Login credentials"
+//	@Success		200		{object}	UserWithToken		"User authenticated successfully"
+//	@Failure		400		{object}	error
+//	@Failure		401		{object}	error
+//	@Failure		404		{object}	error
+//	@Failure		500		{object}	error
+//	@Router			/auth/login [post]
+func (handler *Handler) AuthenticateUser(w http.ResponseWriter, r *http.Request) {
+	logger := handler.app.Logger
+	var payload AuthenticatePayload
+
+	// Read the request body
+	if err := httputil.ReadJSON(w, r, &payload); err != nil {
+		apierror.BadRequest(logger, w, r, err)
+		return
+	}
+
+	ctx := r.Context()
+
+	// Call the authenticate service method
+	userToken, err := handler.service.Authenticate(ctx, payload)
+
+	if err != nil {
+		switch err {
+		case apierror.ErrBadRequest:
+			apierror.BadRequest(logger, w, r, err)
+			return
+		case apierror.ErrNotFound:
+			apierror.NotFound(logger, w, r, err)
+			return
+		case apierror.ErrUnauthorized:
+			apierror.Unauthorized(logger, w, r, err)
+		default:
+			apierror.InternalServerError(logger, w, r, err)
+			return
+		}
+	}
+	// Set a cookie with the JWT (90 days)
+	auth.SetCookie(w, auth.AuthTokenCookieKey, userToken.Token, auth.AuthTokenCookieExp)
+
+	userTokenResp := &UserWithTokenResponse{
+		User:  userToken.User.ToResponse(),
+		Token: userToken.Token,
+	}
+
+	// send a response
+	if err := httputil.JSONResponse(w, http.StatusOK, userTokenResp, "User is authenticated successfully."); err != nil {
+		apierror.InternalServerError(logger, w, r, err)
 		return
 	}
 }

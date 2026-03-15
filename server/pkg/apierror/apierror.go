@@ -9,9 +9,10 @@ import (
 
 // Define Some Custom Errors for more readable Error Handling
 var (
-	ErrNotFound   = errors.New("recrecordord not found")
-	ErrConflict   = errors.New("resource already exists")
-	ErrBadRequest = errors.New("bad request")
+	ErrNotFound     = errors.New("resource is not found")
+	ErrConflict     = errors.New("resource already exists")
+	ErrBadRequest   = errors.New("bad request")
+	ErrUnauthorized = errors.New("Not Authorized")
 )
 
 // Error represents a typed API error response.

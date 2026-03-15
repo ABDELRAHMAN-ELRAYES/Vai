@@ -81,7 +81,7 @@ func (repo *Repository) GetByID(ctx context.Context, id uuid.UUID) (*User, error
 }
 func (repo *Repository) GetByEmail(ctx context.Context, email string) (*User, error) {
 
-	query := `SELECT id, first_name, last_name, email, created_at, is_active FROM users WHERE email=$1`
+	query := `SELECT id, first_name, last_name, email, password, created_at, is_active FROM users WHERE email=$1`
 
 	ctx, cancel := context.WithTimeout(ctx, queryTimeoutDuration)
 	defer cancel()
@@ -97,6 +97,7 @@ func (repo *Repository) GetByEmail(ctx context.Context, email string) (*User, er
 		&user.FirstName,
 		&user.LastName,
 		&user.Email,
+		&user.Password.Hash,
 		&user.CreatedAt,
 		&user.IsActive,
 	)
