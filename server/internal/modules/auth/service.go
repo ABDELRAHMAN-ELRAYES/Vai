@@ -2,26 +2,39 @@ package auth
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/auth"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/config"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/db"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/users"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/validator"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/apierror"
-	"github.com/golang-jwt/jwt/v5"
 )
 
 type Service struct {
+	db            *sql.DB
+	repo          *Repository
 	userService   *users.Service
 	authenticator *auth.JWTAuthenticator
 	cfg           *config.Config
 }
 
-func NewService(userService *users.Service, authenticator *auth.JWTAuthenticator, cfg config.Config) *Service {
+func NewService(
+	db *sql.DB,
+	repo *Repository,
+	userService *users.Service,
+	authenticator *auth.JWTAuthenticator,
+	cfg *config.Config,
+) *Service {
 	return &Service{
+		db:            db,
+		repo:          repo,
 		userService:   userService,
 		authenticator: authenticator,
+		cfg:           cfg,
 	}
 }
 
@@ -34,35 +47,46 @@ func (service *Service) RegisterUser(ctx context.Context, payload RegisterUserPa
 	_, err := service.userService.GetUserByEmail(ctx, payload.Email)
 
 	if err != nil {
-		return nil, err
+		if !errors.Is(err, apierror.ErrNotFound) {
+			return nil, err
+		}
 	}
 
 	// create user
-	createUserPayload := &users.CreateUserPayload{
+	user := &users.User{
 		FirstName: payload.FirstName,
 		LastName:  payload.LastName,
 		Email:     payload.Email,
-		Password:  payload.Password,
 	}
-	user, err := service.userService.Create(ctx, createUserPayload)
-	if err != nil {
+
+	if err = user.Password.Set(payload.Password); err != nil {
 		return nil, err
 	}
+	token := auth.GenerateRandomToken()
+	hashedToken := auth.HashToken(token)
 
-	// generate JWT Token
+	// Create a new user + token (with tranasaction)
+	err = db.WithTx(service.db, ctx, func(tx *sql.Tx) error {
+		userRepo := users.NewRepository(tx)
+		authRepo := NewRepository(tx)
 
-	claims := UserClaims{
-		UserID: user.ID,
-		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer:   service.cfg.Authenticator.JWT.Iss,
-			Audience: []string{service.cfg.Authenticator.JWT.Aud},
-			ExpiresAt: jwt.NewNumericDate(
-				time.Now().Add(service.cfg.Authenticator.JWT.MailTokenExp),
-			),
-			IssuedAt: jwt.NewNumericDate(time.Now()),
-		},
-	}
-	token, err := service.authenticator.GenerateToken(claims)
+		err = userRepo.Create(ctx, user)
+		if err != nil {
+			return err
+		}
+		token := &Token{
+			UserID:    user.ID,
+			Token:     hashedToken,
+			ExpiredAt: time.Now().Add(service.cfg.Authenticator.JWT.MailTokenExp),
+		}
+
+		err = authRepo.CreateToken(ctx, token)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +95,35 @@ func (service *Service) RegisterUser(ctx context.Context, payload RegisterUserPa
 		User:  user,
 		Token: token,
 	}
-	// send email
+	//TODO: send email
 
 	return userToken, nil
+}
+
+func (service *Service) ActivateUser(ctx context.Context, token string) error {
+	hashedToken := auth.HashToken(token)
+
+	return db.WithTx(service.db, ctx, func(tx *sql.Tx) error {
+		userRepo := users.NewRepository(tx)
+		authRepo := NewRepository(tx)
+
+		// Get  User by The sent token
+		user, err := userRepo.GetFromToken(ctx, hashedToken)
+		if err != nil {
+			return err
+		}
+
+		// Activate user account
+		user.IsActive = true
+		if err := userRepo.ActivateUser(ctx, user); err != nil {
+			return err
+		}
+
+		// Clean up the token
+		if err := authRepo.CleanUpToken(ctx, user.ID); err != nil {
+			return err
+		}
+
+		return nil
+	})
 }

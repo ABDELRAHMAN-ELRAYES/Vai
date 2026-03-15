@@ -1,5 +1,33 @@
 basePath: /api/v1
 definitions:
+  auth.RegisterUserPayload:
+    properties:
+      email:
+        maxLength: 255
+        type: string
+      first_name:
+        maxLength: 255
+        type: string
+      last_name:
+        maxLength: 255
+        type: string
+      password:
+        maxLength: 72
+        minLength: 3
+        type: string
+    required:
+    - email
+    - first_name
+    - last_name
+    - password
+    type: object
+  auth.UserWithToken:
+    properties:
+      token:
+        type: string
+      user:
+        $ref: '#/definitions/users.User'
+    type: object
   users.CreateUserPayload:
     properties:
       email:
@@ -45,6 +73,59 @@ info:
   title: Vai API
   version: "1.0"
 paths:
+  /auth/activate/{token}:
+    post:
+      description: Activates a user using a verification token
+      parameters:
+      - description: Activation token
+        in: path
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: User activated
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema: {}
+        "500":
+          description: Internal Server Error
+          schema: {}
+      summary: Activate a user account
+      tags:
+      - authentication
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Registers a new user and creates a verification token
+      parameters:
+      - description: User credentials
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/auth.RegisterUserPayload'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: User registered
+          schema:
+            $ref: '#/definitions/auth.UserWithToken'
+        "400":
+          description: Bad Request
+          schema: {}
+        "500":
+          description: Internal Server Error
+          schema: {}
+      summary: Register a user
+      tags:
+      - authentication
   /health:
     get:
       description: Returns service health and version information

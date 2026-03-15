@@ -1,11 +1,13 @@
 package auth
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/app"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/apierror"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/httputil"
+	"github.com/go-chi/chi/v5"
 )
 
 type Handler struct {
@@ -20,6 +22,18 @@ func NewHandler(app *app.Application, service *Service) *Handler {
 	}
 }
 
+// registerUserHandler godoc
+//
+//	@Summary		Register a user
+//	@Description	Registers a new user and creates a verification token
+//	@Tags			authentication
+//	@Accept			json
+//	@Produce		json
+//	@Param			payload	body		RegisterUserPayload	true	"User credentials"
+//	@Success		201		{object}	UserWithToken		"User registered"
+//	@Failure		400		{object}	error
+//	@Failure		500		{object}	error
+//	@Router			/auth/register [post]
 func (handler *Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	logger := handler.app.Logger
 
@@ -54,15 +68,45 @@ func (handler *Handler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// activateUserHandler godoc
+//
+//	@Summary		Activate a user account
+//	@Description	Activates a user using a verification token
+//	@Tags			authentication
+//	@Produce		json
+//	@Param			token	path		string	true	"Activation token"
+//	@Success		204		{string}	string	"User activated"
+//	@Failure		400		{object}	error
+//	@Failure		500		{object}	error
+//	@Router			/auth/activate/{token} [post]
 func (handler *Handler) ActivateUser(w http.ResponseWriter, r *http.Request) {
-	// Extract the token
-	
-	// Extract the claims 
+	logger := handler.app.Logger
 
+	// Extract the token From URL query
+	token := chi.URLParam(r, "token")
 
+	if token == "" {
+		apierror.BadRequest(logger, w, r, errors.New("Verification Token is Required to activate your account."))
+		return
+	}
 
-}
+	ctx := r.Context()
+	err := handler.service.ActivateUser(ctx, token)
 
-func (handler *Handler) Authenticate(w http.ResponseWriter, r *http.Request) {
+	if err != nil {
+		switch err {
+		case apierror.ErrNotFound:
+			apierror.NotFound(handler.app.Logger, w, r, err)
+			return
+		default:
+			apierror.InternalServerError(handler.app.Logger, w, r, err)
+			return
+		}
+	}
 
+	// send a response
+	if err := httputil.JSONResponse(w, http.StatusNoContent, nil, "User was activated successfully."); err != nil {
+		apierror.InternalServerError(handler.app.Logger, w, r, err)
+		return
+	}
 }

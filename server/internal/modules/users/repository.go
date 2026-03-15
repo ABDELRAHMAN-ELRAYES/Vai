@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/db"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/apierror"
 	"github.com/google/uuid"
 )
@@ -13,11 +14,14 @@ import (
 var queryTimeoutDuration = 5 * time.Second
 
 type Repository struct {
-	db *sql.DB
+	db db.DBTX
 }
 
-func NewRepository(db *sql.DB) *Repository {
+func NewRepository(db db.DBTX) *Repository {
 	return &Repository{db: db}
+}
+func (r *Repository) WithTx(tx *sql.Tx) *Repository {
+	return &Repository{db: tx}
 }
 func (repo *Repository) Create(ctx context.Context, user *User) error {
 
@@ -106,5 +110,42 @@ func (repo *Repository) GetByEmail(ctx context.Context, email string) (*User, er
 		}
 	}
 
+	return user, nil
+}
+func (repo *Repository) ActivateUser(ctx context.Context, user *User) error {
+	query := `UPDATE users SET is_active = $1 WHERE id = $2`
+
+	ctx, cancel := context.WithTimeout(ctx, queryTimeoutDuration)
+	defer cancel()
+
+	_, err := repo.db.ExecContext(ctx, query, user.IsActive, user.ID)
+	return err
+}
+
+func (repo *Repository) GetFromToken(ctx context.Context, token []byte) (*User, error) {
+	query := `
+	SELECT users.id, users.first_name, users.last_name, users.email, users.created_at, users.is_active 
+	FROM verification_tokens vt JOIN users ON vt.user_id = users.id 
+	WHERE vt.token = $1 AND vt.expired_at > $2
+	`
+
+	ctx, cancel := context.WithTimeout(ctx, queryTimeoutDuration)
+	defer cancel()
+
+	user := &User{}
+	err := repo.db.QueryRowContext(ctx, query, token, time.Now()).Scan(&user.ID,
+		&user.FirstName,
+		&user.LastName,
+		&user.Email,
+		&user.CreatedAt,
+		&user.IsActive)
+	if err != nil {
+		switch err {
+		case sql.ErrNoRows:
+			return nil, apierror.ErrNotFound
+		default:
+			return nil, err
+		}
+	}
 	return user, nil
 }

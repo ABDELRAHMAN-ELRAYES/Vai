@@ -13,7 +13,8 @@ type Module struct {
 }
 
 func New(app *app.Application, userService *users.Service) *Module {
-	service := NewService(userService, app.Authenticator,app.Config)
+	repo := NewRepository(app.DB)
+	service := NewService(app.DB, repo, userService, app.Authenticator, &app.Config)
 	handler := NewHandler(app, service)
 	return &Module{
 		Handler: handler,
