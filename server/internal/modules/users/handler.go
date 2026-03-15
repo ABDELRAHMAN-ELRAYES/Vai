@@ -50,7 +50,7 @@ func (handler *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	user, err := handler.service.Create(ctx, &payload)
 	if err != nil {
 		switch err {
-		case err, apierror.ErrBadRequest:
+		case apierror.ErrBadRequest:
 			apierror.BadRequest(logger, w, r, err)
 			return
 		case apierror.ErrConflict:

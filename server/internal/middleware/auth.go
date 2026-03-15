@@ -7,10 +7,8 @@ import (
 
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/app"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/auth"
-	authModule "github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/auth"
-	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/users"
 
-	"github.com/google/uuid"
+	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/apierror"
 )
@@ -19,8 +17,15 @@ type userCtxKeyType struct{}
 
 var userCtxKey userCtxKeyType
 
+type UserClaims struct {
+	UserID string `json:"UserID"`
+	jwt.RegisteredClaims
+}
+
+type UserFetcher func(ctx context.Context, id string) (any, error)
+
 // Protect check if the user is authenticated and attach its data to the request context
-func Protect(app *app.Application) func(http.Handler) http.Handler {
+func Protect(app *app.Application, fetcher UserFetcher) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token, err := auth.GetTokenFromCookie(r)
@@ -29,36 +34,33 @@ func Protect(app *app.Application) func(http.Handler) http.Handler {
 				return
 			}
 
-			claims := &authModule.UserClaims{}
+			claims := &UserClaims{}
 			_, err = app.Authenticator.ValidateToken(token, claims)
 			if err != nil {
 				apierror.Unauthorized(app.Logger, w, r, err)
 				return
 			}
 
-			id, err := uuid.Parse(claims.UserID)
 			if err != nil {
 				apierror.Unauthorized(app.Logger, w, r, err)
 				return
 			}
 			ctx := r.Context()
 
-			// TODO: must be udpated not to create the repo here
-			userRepo := users.NewRepository(app.DB)
-
-			user, err := userRepo.GetByID(ctx, id)
-
+			user, err := fetcher(ctx, claims.UserID)
 			if err != nil {
 				apierror.Unauthorized(app.Logger, w, r, err)
 				return
 			}
-			userTokenResp := &authModule.UserWithTokenResponse{
-				User:  user.ToResponse(),
-				Token: token,
-			}
 
-			ctx = context.WithValue(ctx, userCtxKey, userTokenResp)
+			ctx = context.WithValue(ctx, userCtxKey, user)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// GetUser retrieves the authenticated user from the context
+func GetUser(ctx context.Context) (any, bool) {
+	user := ctx.Value(userCtxKey)
+	return user, user != nil
 }
