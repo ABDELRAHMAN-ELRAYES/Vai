@@ -8,7 +8,7 @@ import (
 )
 
 func RegisterRoutes(r chi.Router, handler *Handler) {
-	fetchUser := func(ctx context.Context,id string) (any, error) {
+	fetchUser := func(ctx context.Context, id string) (any, error) {
 		return handler.service.GetUser(ctx, id)
 	}
 	r.Route("/users", func(r chi.Router) {

@@ -27,7 +27,7 @@ seed:
 
 .PHONY: gen-docs
 gen-docs:
-	@swag init -g cmd/api/main.go -d . && swag fmt
+	@swag init -g cmd/api/main.go -o docs/api -d . && swag fmt
 
 
 # migrate -path ./migrations -database "$DB_ADDR" force 1 

@@ -153,6 +153,7 @@ func (service *Service) Authenticate(ctx context.Context, payload AuthenticatePa
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
 			Issuer:    service.cfg.Authenticator.JWT.Iss,
+			Audience:  []string{service.cfg.Authenticator.JWT.Aud},
 		},
 	}
 

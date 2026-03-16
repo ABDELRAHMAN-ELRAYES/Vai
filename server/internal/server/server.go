@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ABDELRAHMAN-ELRAYES/Vai/docs"
+	docs "github.com/ABDELRAHMAN-ELRAYES/Vai/docs/api"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/app"
 	"github.com/go-chi/chi/v5"
 )

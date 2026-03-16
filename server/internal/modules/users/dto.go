@@ -7,7 +7,6 @@ type CreateUserPayload struct {
 	Password  string `json:"password" validate:"required"`
 }
 
-
 type UserResponse struct {
 	ID        string `json:"id"`
 	FirstName string `json:"first_name"`

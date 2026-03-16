@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/app"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/shared"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/apierror"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/httputil"
 	"github.com/go-chi/chi/v5"
@@ -88,6 +89,9 @@ func (handler *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 //	@Router			/users/{userID} [get]
 func (handler *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 	logger := handler.app.Logger
+	userCtx := r.Context().Value(shared.UserCtxKey).(*User)
+
+	logger.Info("user context", userCtx)
 
 	id := chi.URLParam(r, "userID")
 

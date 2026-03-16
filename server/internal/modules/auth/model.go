@@ -20,5 +20,5 @@ type Token struct {
 }
 type UserWithToken struct {
 	User  *users.User `json:"user"`
-	Token string              `json:"token"`
+	Token string      `json:"token"`
 }

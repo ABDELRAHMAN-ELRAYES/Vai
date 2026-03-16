@@ -7,15 +7,12 @@ import (
 
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/app"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/auth"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/shared"
 
 	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/apierror"
 )
-
-type userCtxKeyType struct{}
-
-var userCtxKey userCtxKeyType
 
 type UserClaims struct {
 	UserID string `json:"UserID"`
@@ -41,10 +38,6 @@ func Protect(app *app.Application, fetcher UserFetcher) func(http.Handler) http.
 				return
 			}
 
-			if err != nil {
-				apierror.Unauthorized(app.Logger, w, r, err)
-				return
-			}
 			ctx := r.Context()
 
 			user, err := fetcher(ctx, claims.UserID)
@@ -53,14 +46,8 @@ func Protect(app *app.Application, fetcher UserFetcher) func(http.Handler) http.
 				return
 			}
 
-			ctx = context.WithValue(ctx, userCtxKey, user)
+			ctx = context.WithValue(ctx, shared.UserCtxKey, user)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
-}
-
-// GetUser retrieves the authenticated user from the context
-func GetUser(ctx context.Context) (any, bool) {
-	user := ctx.Value(userCtxKey)
-	return user, user != nil
 }

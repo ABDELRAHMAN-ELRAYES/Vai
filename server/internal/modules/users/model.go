@@ -12,7 +12,7 @@ type User struct {
 	CreatedAt string   `json:"created_at"`
 	IsActive  bool     `json:"is_active"`
 	Password  Password `json:"-"` // The password musn't be returned even on the hashed state
-	
+
 }
 
 func (u *User) ToResponse() *UserResponse {

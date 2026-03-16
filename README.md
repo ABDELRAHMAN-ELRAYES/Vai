@@ -2,7 +2,7 @@
 
 **Vai** is a self-hosted, privacy-first AI document assistant. Upload your documents, ask questions in plain language, and get accurate answers grounded in your own content — no cloud APIs, no data leaving your machine.
 
-Built with Go, Ollama, Qdrant, and open-source embedding models, Vai gives you the full power of a retrieval-augmented generation (RAG) system that you own and control entirely.
+Built with Go, Ollama(qwen3.5:4b), Qdrant, and open-source embedding model(nomic-embed-text:v1.5), Vai gives you the full power of a retrieval-augmented generation (RAG) system that you own and control entirely.
 
 ---
 
@@ -64,7 +64,7 @@ Vai is designed for developers, teams, and organizations that need AI-powered do
          ▼                     ▼                   ▼
 ┌─────────────────┐  ┌──────────────────┐  ┌──────────────────┐
 │  Chunker        │  │  Embedding Model │  │  LLM (Ollama)    │
-│  (text splitter)│  │  (nomic-embed)   │  │  (llama3)        │
+│  (text splitter)│  │  (nomic-embed-text:v1.5)   │  │  (qwen3.5:4b)        │
 └────────┬────────┘  └────────┬─────────┘  └──────────────────┘
          │                    │
          ▼                    ▼
@@ -125,8 +125,8 @@ The LLM never sees the full document — only the retrieved chunks most relevant
 | Component | Technology | Purpose |
 |-----------|-----------|---------|
 | Backend | Go | API server, pipeline orchestration |
-| LLM | Ollama + llama3 | Answer generation |
-| Embeddings | Ollama + nomic-embed-text | Semantic vector generation |
+| LLM | Ollama + qwen3.5:4b | Answer generation |
+| Embeddings | Ollama + nomic-embed-text:v1.5 | Semantic vector generation |
 | Vector DB | Qdrant | Similarity search |
 | Deployment | Docker + Docker Compose | Containerized infrastructure |
 
@@ -165,14 +165,14 @@ docker run -p 6333:6333 qdrant/qdrant
 ollama serve
 
 # In a separate terminal:
-ollama pull llama3              # language model for generating answers
-ollama pull nomic-embed-text    # embedding model for semantic search
+ollama pull qwen3.5:4b              # language model for generating answers
+ollama pull nomic-embed-text:v1.5    # embedding model for semantic search
 ```
 
 **3. Start the Vai server**
 
 ```bash
-go run main.go
+air
 ```
 
 The server will be available at `http://localhost:8080`.
@@ -292,8 +292,8 @@ Configuration is set in `main.go` via the `rag.Config` struct. All values have s
 |-----------|---------|-------------|
 | `ChunkSize` | `500` | Target character count per chunk |
 | `ChunkOverlap` | `100` | Characters of overlap between consecutive chunks |
-| `EmbeddingModel` | `nomic-embed-text` | Ollama embedding model |
-| `ChatModel` | `llama3` | Ollama language model |
+| `EmbeddingModel` | `nomic-embed-text:v1.5` | Ollama embedding model |
+| `ChatModel` | `qwen3.5:4b` | Ollama language model |
 | `QdrantURL` | `http://localhost:6333` | Qdrant server address |
 | `OllamaURL` | `http://localhost:11434` | Ollama server address |
 | `Collection` | `documents` | Qdrant collection name |
