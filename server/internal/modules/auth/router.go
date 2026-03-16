@@ -7,5 +7,6 @@ func RegisterRoutes(r chi.Router, handler *Handler) {
 		r.Post("/register", handler.RegisterUser)
 		r.Post("/activate/{token}", handler.ActivateUser)
 		r.Post("/login", handler.AuthenticateUser)
+		r.Post("/logout", handler.Logout)
 	})
 }

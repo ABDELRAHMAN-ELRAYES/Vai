@@ -146,6 +146,31 @@ paths:
       summary: Authenticate user
       tags:
       - authentication
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Logout user by removing JWT cookie.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User logged out successfully
+        "400":
+          description: Bad Request
+          schema: {}
+        "401":
+          description: Unauthorized
+          schema: {}
+        "404":
+          description: Not Found
+          schema: {}
+        "500":
+          description: Internal Server Error
+          schema: {}
+      summary: Logout user
+      tags:
+      - authentication
   /auth/register:
     post:
       consumes:

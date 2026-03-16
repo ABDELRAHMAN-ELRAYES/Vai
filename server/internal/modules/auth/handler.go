@@ -175,3 +175,28 @@ func (handler *Handler) AuthenticateUser(w http.ResponseWriter, r *http.Request)
 		return
 	}
 }
+
+// Logout godoc
+//
+//	@Summary		Logout user
+//	@Description	Logout user by removing JWT cookie.
+//	@Tags			authentication
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{object}	nil	"User logged out successfully"
+//	@Failure		400	{object}	error
+//	@Failure		401	{object}	error
+//	@Failure		404	{object}	error
+//	@Failure		500	{object}	error
+//	@Router			/auth/logout [post]
+func (handler *Handler) Logout(w http.ResponseWriter, r *http.Request) {
+	logger := handler.app.Logger
+
+	auth.SetCookie(w, auth.AuthTokenCookieKey, "", auth.AuthTokenCookieExp)
+
+	// send a response
+	if err := httputil.JSONResponse(w, http.StatusOK, nil, "User logged out successfully."); err != nil {
+		apierror.InternalServerError(logger, w, r, err)
+		return
+	}
+}

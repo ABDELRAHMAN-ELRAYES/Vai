@@ -45,7 +45,14 @@ type JWTConfig struct {
 	MailTokenExp time.Duration
 }
 type Mail struct {
-	Expiry time.Duration
+	SMTPHost     string
+	SMTPPort     int
+	SMTPUser     string
+	SMTPPassword string
+	FromName     string
+	FromAddress  string
+	SupportEmail string
+	Expiry       time.Duration
 }
 
 func Load() Config {
@@ -79,7 +86,14 @@ func Load() Config {
 			},
 		},
 		Mail: Mail{
-			Expiry: 73 * time.Hour,
+			SMTPHost:     env.GetStringEnv("MAIL_SMTP_HOST", ""),
+			SMTPPort:     env.GetIntEnv("MAIL_SMTP_PORT", 0),
+			SMTPUser:     env.GetStringEnv("MAIL_USER", ""),
+			SMTPPassword: env.GetStringEnv("MAIL_PASSWORD", ""),
+			FromName:     env.GetStringEnv("MAIL_FROM_NAME", ""),
+			FromAddress:  env.GetStringEnv("FROM_ADDRESS", ""),
+			SupportEmail: env.GetStringEnv("MAIL_SUPPORT_EMAIL", ""),
+			Expiry:       73 * time.Hour,
 		},
 	}
 }

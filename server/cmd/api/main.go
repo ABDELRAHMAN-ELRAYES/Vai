@@ -5,6 +5,7 @@ import (
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/auth"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/config"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/db"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/mailer"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/server"
 	"go.uber.org/zap"
 )
@@ -64,6 +65,11 @@ func main() {
 
 	// Create JWT Authenticator
 	authenticator := auth.NewJWTuthenticator(cfg.Authenticator.JWT.Secret, cfg.Authenticator.JWT.Iss, cfg.Authenticator.JWT.Aud)
+	// Create a Mailer Client
+	mailer, err := mailer.New(&cfg.Mail)
+	if err != nil {
+		logger.Fatal("Mailer Failed : ", err)
+	}
 
 	app := app.New(
 		cfg,
@@ -71,6 +77,7 @@ func main() {
 		database,
 		qdrantClient,
 		authenticator,
+		mailer,
 	)
 	// Create Router
 	mux := server.NewRouter(app)

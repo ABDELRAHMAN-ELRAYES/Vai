@@ -9,10 +9,11 @@ import (
 
 // Define Some Custom Errors for more readable Error Handling
 var (
-	ErrNotFound     = errors.New("resource is not found")
-	ErrConflict     = errors.New("resource already exists")
-	ErrBadRequest   = errors.New("bad request")
-	ErrUnauthorized = errors.New("Not Authorized")
+	ErrNotFound       = errors.New("resource is not found")
+	ErrConflict       = errors.New("resource already exists")
+	ErrBadRequest     = errors.New("bad request")
+	ErrUnauthorized   = errors.New("Not Authorized")
+	ErrMailSendFailed = errors.New("Failed to send the email")
 )
 
 // Error represents a typed API error response.

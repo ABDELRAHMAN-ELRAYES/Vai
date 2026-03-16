@@ -4,11 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/auth"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/config"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/db"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/mailer"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/users"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/validator"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/apierror"
@@ -21,6 +23,7 @@ type Service struct {
 	userService   *users.Service
 	authenticator *auth.JWTAuthenticator
 	cfg           *config.Config
+	mailer        mailer.Client
 }
 
 func NewService(
@@ -29,6 +32,7 @@ func NewService(
 	userService *users.Service,
 	authenticator *auth.JWTAuthenticator,
 	cfg *config.Config,
+	mailer mailer.Client,
 ) *Service {
 	return &Service{
 		db:            db,
@@ -36,6 +40,7 @@ func NewService(
 		userService:   userService,
 		authenticator: authenticator,
 		cfg:           cfg,
+		mailer:        mailer,
 	}
 }
 
@@ -96,7 +101,22 @@ func (service *Service) RegisterUser(ctx context.Context, payload RegisterUserPa
 		User:  user,
 		Token: token,
 	}
-	//TODO: send email
+	//send email
+	activationURL := fmt.Sprintf("%s/confirm/%s", service.cfg.FrontendURL, token)
+
+	mailTmplData := &mailer.VerifyEmailData{
+		Name:      fmt.Sprintf("%s %s", user.FirstName, user.LastName),
+		VerifyURL: activationURL,
+		SentAt:    time.Now(),
+	}
+
+	res, err := service.mailer.Send(ctx, "verify_email", user.Email, mailTmplData)
+	if err != nil {
+		return nil, err
+	}
+	if res != mailer.SMTPSuccessCode {
+		return nil, apierror.ErrMailSendFailed
+	}
 
 	return userToken, nil
 }
