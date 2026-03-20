@@ -18,9 +18,10 @@ export const useLogin = (onSuccess: (user: User) => void) => {
 
   return useMutation({
     mutationFn: authApi.login,
-    onSuccess: (data) => {
-      onSuccess(data.user);
-      queryClient.setQueryData(["auth", "me"], data.user);
+    onSuccess: (response) => {
+      console.log(response)
+      onSuccess(response.data.user);
+      queryClient.setQueryData(["auth", "me"], { data: response.data.user });
       toast.success("Welcome back!");
     },
     onError: (error) =>
@@ -53,8 +54,8 @@ export const useLogout = (onSettled: () => void) => {
 export const useRegister = (onSuccess: (user: User) => void) => {
   return useMutation({
     mutationFn: (payload: RegisterUserPayload) => authApi.register(payload),
-    onSuccess: (data) => {
-      onSuccess(data.user);
+    onSuccess: (response) => {
+      onSuccess(response.data.user);
       toast.info("Check your email to activate your account");
     },
     onError: (error) =>

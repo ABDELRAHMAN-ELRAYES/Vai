@@ -6,6 +6,8 @@ import (
 
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/app"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/auth"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/shared"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/users"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/apierror"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/httputil"
 	"github.com/go-chi/chi/v5"
@@ -135,11 +137,14 @@ func (handler *Handler) AuthenticateUser(w http.ResponseWriter, r *http.Request)
 	logger := handler.app.Logger
 	var payload AuthenticatePayload
 
+	logger.Info("payload", payload)
+
 	// Read the request body
 	if err := httputil.ReadJSON(w, r, &payload); err != nil {
 		apierror.BadRequest(logger, w, r, err)
 		return
 	}
+	logger.Info("payload", payload)
 
 	ctx := r.Context()
 
@@ -196,6 +201,34 @@ func (handler *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 
 	// send a response
 	if err := httputil.JSONResponse(w, http.StatusOK, nil, "User logged out successfully."); err != nil {
+		apierror.InternalServerError(logger, w, r, err)
+		return
+	}
+}
+
+// GetMe godoc
+//
+//	@Summary		Get current user
+//	@Description	Fetches the profile of the currently authenticated user
+//	@Tags			authentication
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{object}	users.UserResponse	"The current User data"
+//	@Failure		401	{object}	error
+//	@Failure		500	{object}	error
+//	@Security		ApiKeyAuth
+//	@Router			/auth/me [get]
+func (handler *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
+	logger := handler.app.Logger
+
+	ctx := r.Context()
+	user, ok := ctx.Value(shared.UserCtxKey).(*users.User)
+	if !ok {
+		apierror.Unauthorized(logger, w, r, errors.New("You are Unathorized"))
+		return
+	}
+
+	if err := httputil.JSONResponse(w, http.StatusOK, user.ToResponse(), "The current User data."); err != nil {
 		apierror.InternalServerError(logger, w, r, err)
 		return
 	}

@@ -35,7 +35,11 @@ import {
   type SidebarFooterItemId,
 } from "@/constants/sidebar";
 import { SettingsDialog } from "@/components/settings/SettingsDialog";
-import { AuthDialog, type AuthMode } from "@/components/auth/AuthDialog";
+import { useAuth } from "@/hooks/auth/useAuth";
+import { Button } from "@/components/ui/button";
+import { LoginDialog } from "@/components/auth/LoginDialog";
+import { RegisterDialog } from "@/components/auth/RegisterDialog";
+
 import { SquarePen } from "lucide-react";
 
 const footerItemIcons: Record<
@@ -48,11 +52,18 @@ const footerItemIcons: Record<
 };
 
 export function AppSidebar() {
+  const {
+    user,
+    isAuthenticated,
+    logout,
+    isAuthOpen,
+    setIsAuthOpen,
+    authMode,
+    setAuthMode,
+  } = useAuth();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [authMode, setAuthMode] = useState<AuthMode>("sign-in");
 
-  const openAuth = (mode: AuthMode) => {
+  const openAuth = (mode: "sign-in" | "sign-up") => {
     setAuthMode(mode);
     setIsAuthOpen(true);
   };
@@ -63,7 +74,11 @@ export function AppSidebar() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flexitems-center justify-center rounded-lg ">
-              <img src="/images/logo/logo.png" alt="Logo" className="h-12 w-12" />
+              <img
+                src="/images/logo/logo.png"
+                alt="Logo"
+                className="h-12 w-12"
+              />
             </div>
             <div className="flex flex-col">
               <span className="text-sm font-semibold">Vai</span>
@@ -74,25 +89,32 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="px-0 gap-0">
-        <SidebarGroup>
-          <div className="relative px-0 py-0">
-            <MagnifyingGlass className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search"
-              className="h-9 rounded-lg bg-muted/50 pl-8 text-sm placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-primary/20 border-border border shadow-none"
-            />
-            <kbd className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
-              <span className="text-xs">⌘</span>K
-            </kbd>
-          </div>
-        </SidebarGroup>
+        {isAuthenticated && (
+          <SidebarGroup>
+            <div className="relative px-0 py-0">
+              <MagnifyingGlass className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search"
+                className="h-9 rounded-lg bg-muted/50 pl-8 text-sm placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-primary/20 border-border border shadow-none"
+              />
+              <kbd className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
+                <span className="text-xs">⌘</span>K
+              </kbd>
+            </div>
+          </SidebarGroup>
+        )}
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem key={"new-chat"}>
                 <SidebarMenuButton
                   className="h-9 rounded-lg px-3 text-muted-foreground"
-                  onClick={() => {}}
+                  onClick={() => {
+                    if (!isAuthenticated) {
+                      openAuth("sign-in");
+                      return;
+                    }
+                  }}
                 >
                   <SquarePen className="h-[18px] w-[18px]" />
                   <span>{"New Chat"}</span>
@@ -101,88 +123,125 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        <SidebarGroup>
-          <SidebarGroupLabel className="px-3 text-xs font-medium text-muted-foreground">
-            Your Chats
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {activeProjects.map((project) => (
-                <SidebarMenuItem key={project.name}>
-                  <SidebarMenuButton className="h-9 rounded-lg px-3 group">
-                    <span className="flex-1 truncate text-sm">
-                      {project.name}
-                    </span>
-                    <span className="opacity-0 group-hover:opacity-100 rounded p-0.5 hover:bg-accent">
-                      <span className="text-muted-foreground text-lg">···</span>
-                    </span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {isAuthenticated && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="px-3 text-xs font-medium text-muted-foreground">
+              Your Chats
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {activeProjects.map((project) => (
+                  <SidebarMenuItem key={project.name}>
+                    <SidebarMenuButton className="h-9 rounded-lg px-3 group">
+                      <span className="flex-1 truncate text-sm">
+                        {project.name}
+                      </span>
+                      <span className="opacity-0 group-hover:opacity-100 rounded p-0.5 hover:bg-accent">
+                        <span className="text-muted-foreground text-lg">
+                          ···
+                        </span>
+                      </span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
       <SidebarFooter className="border-t border-border/40 p-2">
-        <SidebarMenu>
-          {footerItems.map((item) => (
-            <SidebarMenuItem key={item.label}>
-              <SidebarMenuButton
-                className="h-9 rounded-lg px-3 text-muted-foreground"
-                onClick={() => {
-                  if (item.id === "settings") {
-                    setIsSettingsOpen(true);
-                  }
-                }}
-              >
-                {(() => {
-                  const Icon = footerItemIcons[item.id];
-                  return Icon ? <Icon className="h-[18px] w-[18px]" /> : null;
-                })()}
-                <span>{item.label}</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
+        {isAuthenticated && (
+          <SidebarMenu>
+            {footerItems.map((item) => (
+              <SidebarMenuItem key={item.label}>
+                <SidebarMenuButton
+                  className="h-9 rounded-lg px-3 text-muted-foreground"
+                  onClick={() => {
+                    if (item.id === "settings") {
+                      setIsSettingsOpen(true);
+                    }
+                  }}
+                >
+                  {(() => {
+                    const Icon = footerItemIcons[item.id];
+                    return Icon ? <Icon className="h-[18px] w-[18px]" /> : null;
+                  })()}
+                  <span>{item.label}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        )}
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="mt-2 flex w-full items-center gap-3 rounded-lg p-2 text-left hover:bg-accent cursor-pointer"
-            >
-              <Avatar className="h-8 w-8">
-                <AvatarImage src="/avatar-profile.jpg" />
-                <AvatarFallback>AE</AvatarFallback>
-              </Avatar>
-              <div className="flex flex-1 flex-col">
-                <span className="text-sm font-medium">Abdelrahman</span>
-                <span className="text-xs text-muted-foreground max-w-32 truncate">
-                  abdelrahmanelrayes2@mail.com
-                </span>
+        {isAuthenticated && user ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="mt-2 flex w-full items-center gap-3 rounded-lg p-2 text-left hover:bg-accent cursor-pointer"
+              >
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src="/avatar-profile.jpg" />
+                  <AvatarFallback>
+                    {user.first_name?.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex flex-1 flex-col truncate">
+                  <span className="text-sm font-medium">
+                    {user.first_name} {user.last_name}
+                  </span>
+                  <span className="text-xs text-muted-foreground w-full truncate">
+                    {user.email}
+                  </span>
+                </div>
+                <CaretRight className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="right" align="end" className="w-40">
+              <DropdownMenuItem
+                className="cursor-pointer text-destructive focus:text-destructive"
+                onSelect={logout}
+              >
+                <SignOut className="h-4 w-4" />
+                Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <>
+            <div>
+              <div className="flex flex-col gap-2 px-4 mb-4">
+                <h1 className="text-sm font-semibold mb-2">
+                  Get responses tailored to you
+                </h1>
+                <p className="text-xs text-muted-foreground">
+                  Log in to get answers based on entered docs
+                </p>
               </div>
-              <CaretRight className="h-4 w-4 text-muted-foreground" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent side="right" align="end" className="w-40">
-            <DropdownMenuItem
-              className="cursor-pointer text-destructive focus:text-destructive"
-              onSelect={() => openAuth("sign-in")}
-            >
-              <SignOut className="h-4 w-4" />
-              Logout
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+
+              <Button
+                variant="outline"
+                className="w-full mt-2 h-[50px]"
+                onClick={() => openAuth("sign-in")}
+              >
+                Log in
+              </Button>
+            </div>
+          </>
+        )}
       </SidebarFooter>
 
       <SettingsDialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen} />
-      <AuthDialog
-        open={isAuthOpen}
+      <LoginDialog
+        open={isAuthOpen && authMode === "sign-in"}
         onOpenChange={setIsAuthOpen}
-        mode={authMode}
-        onModeChange={setAuthMode}
+        onSwitchToRegister={() => setAuthMode("sign-up")}
+      />
+      <RegisterDialog
+        open={isAuthOpen && authMode === "sign-up"}
+        onOpenChange={setIsAuthOpen}
+        onSwitchToLogin={() => setAuthMode("sign-in")}
       />
     </Sidebar>
   );

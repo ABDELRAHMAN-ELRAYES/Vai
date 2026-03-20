@@ -14,8 +14,11 @@ export const authApi = {
    * Register a new user with entered dataa
    */
   register(payload: RegisterUserPayload) {
-    return apiClient.post<UserWithToken>(`${ROUTER_PREFIX}/register`, {
-      body: payload,
+    return apiClient.post<{data: UserWithToken}>(`${ROUTER_PREFIX}/register`, {
+      first_name: payload.firstName,
+      last_name: payload.lastName,
+      email: payload.email,
+      password: payload.password,
     });
   },
   /*
@@ -28,9 +31,7 @@ export const authApi = {
    *   Authenticate a user
    */
   login(payload: AuthenticatePayload) {
-    return apiClient.post<UserWithToken>(`${ROUTER_PREFIX}/login`, {
-      body: payload,
-    });
+    return apiClient.post<{data: UserWithToken}>(`${ROUTER_PREFIX}/login`, payload);
   },
   /*
    *   Logout a user
@@ -42,6 +43,6 @@ export const authApi = {
    *   Get current user
    */
   getMe() {
-    return apiClient.get<User>(`${ROUTER_PREFIX}/me`);
+    return apiClient.get<{data: User}>(`${ROUTER_PREFIX}/me`);
   },
 };

@@ -1,12 +1,16 @@
 "use client";
 
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/auth/useAuth";
 
 interface HeaderProps {
   pageName: string;
 }
 
 export function Header({ pageName }: HeaderProps) {
+  const { isAuthenticated, setIsAuthOpen, setAuthMode } = useAuth();
+
   return (
     <header className="flex flex-col border-b border-border/40">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
@@ -14,6 +18,30 @@ export function Header({ pageName }: HeaderProps) {
           <SidebarTrigger className="h-8 w-8 rounded-lg hover:bg-accent text-muted-foreground" />
           <p className="text-base font-medium text-foreground">{pageName}</p>
         </div>
+
+        {!isAuthenticated && (
+          <div className="flex items-center gap-2">
+            <Button
+              className="text-sm font-medium px-5"
+              onClick={() => {
+                setAuthMode("sign-in");
+                setIsAuthOpen(true);
+              }}
+            >
+              Log in
+            </Button>
+            <Button
+              variant="ghost"
+              className="text-sm px-5 shadow-sm border border-border"
+              onClick={() => {
+                setAuthMode("sign-up");
+                setIsAuthOpen(true);
+              }}
+            >
+              Sign up for free
+            </Button>
+          </div>
+        )}
       </div>
     </header>
   );

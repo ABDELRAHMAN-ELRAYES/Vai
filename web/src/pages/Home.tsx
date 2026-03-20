@@ -3,8 +3,10 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/auth/useAuth";
 
 const Home = () => {
+  const { isAuthenticated, setIsAuthOpen, setAuthMode,user } = useAuth();
   const [input, setInput] = useState("");
   const [focused, setFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -23,7 +25,7 @@ const Home = () => {
       <div className="h-full flex flex-col sm:items-center justify-between sm:justify-center w-full max-w-3xl lg:max-w-[55rem] gap-7">
         <div className="text-center">
           <h1 className="text-5xl sm:text-6xl text-[#2d2016] tracking-tight mb-20 mt-40 sm:mt-0 text-left sm:text-center">
-            Hey, Abdelrahman. Ready to dive in?
+           {isAuthenticated ? `Hey, ${user?.first_name}. Ready to dive in?` : "Hey, Ready to dive in?"}
           </h1>
         </div>
 
@@ -44,6 +46,13 @@ const Home = () => {
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey && canSend) {
                   e.preventDefault();
+                  if (!isAuthenticated) {
+                    setAuthMode("sign-in");
+                    setIsAuthOpen(true);
+                    return;
+                  }
+                  // TODO: Send message
+                  toast.info("Sending message...");
                 }
               }}
             />
@@ -77,10 +86,13 @@ const Home = () => {
               disabled={!canSend}
               className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all bg-black text-white shadow-sm`}
               onClick={() => {
-                toast.info("hello world");
-                toast.error("hello world");
-                toast.success("hello world");
-                toast.warning("hello world");
+                if (!isAuthenticated) {
+                  setAuthMode("sign-in");
+                  setIsAuthOpen(true);
+                  return;
+                }
+                // TODO: Send message
+                toast.info("Sending message...");
               }}
             >
               <ArrowRight className="w-6 h-6" />

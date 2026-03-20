@@ -18,6 +18,17 @@ func NewHandler(app *app.Application, service *Service) *Handler {
 	}
 }
 
+// Generate godoc
+//
+//	@Summary		Generate AI response
+//	@Description	Streams an AI generated response based on the provided prompt
+//	@Tags			ai
+//	@Produce		text/event-stream
+//	@Param			prompt	query		string	true	"The prompt for the AI"
+//	@Success		200		{string}	string	"Stream of tokens"
+//	@Failure		500		{object}	error
+//	@Security		ApiKeyAuth
+//	@Router			/ai/generate [get]
 func (h *Handler) Generate(w http.ResponseWriter, r *http.Request) {
 
 	prompt := r.URL.Query().Get("prompt")

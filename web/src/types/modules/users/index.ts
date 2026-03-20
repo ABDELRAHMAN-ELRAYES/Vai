@@ -1,8 +1,8 @@
 export type User = {
   id: string;
-  firstName: string;
-  lastName: string;
+  first_name: string;
+  last_name: string;
   email: string;
-  createdAt: string;
-  isActive: boolean;
+  created_at: string;
+  is_active: boolean;
 };

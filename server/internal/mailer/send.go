@@ -72,7 +72,7 @@ func (c *client) deliver(ctx context.Context, toEmail, subject, htmlBody string)
 		return fmt.Errorf("RCPT TO: %w", err)
 	}
 
-	// 354 Start mail input and return the mail ai writer
+	// 354 Start mail input and return the mail io writer
 	wc, err := cl.Data()
 	if err != nil {
 		return fmt.Errorf("DATA: %w", err)

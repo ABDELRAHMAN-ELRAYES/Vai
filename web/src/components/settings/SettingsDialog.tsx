@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useAuth } from "@/hooks/auth/useAuth";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
 }
 
 function AccountSettingsPane() {
+  const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [photoPreview, setPhotoPreview] = useState("/avatar-profile.jpg");
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
@@ -99,7 +101,7 @@ function AccountSettingsPane() {
           <div className="flex flex-wrap items-center gap-4">
             <Avatar className="h-16 w-16">
               <AvatarImage src={photoPreview} />
-              <AvatarFallback>AE</AvatarFallback>
+              <AvatarFallback>{user?.first_name?.charAt(0)?.toUpperCase() || "U"}</AvatarFallback>
             </Avatar>
             <div className="flex flex-wrap items-center gap-2">
               <Button
@@ -122,14 +124,14 @@ function AccountSettingsPane() {
           </div>
         </SettingRow>
         <SettingRow label="Full name">
-          <Input defaultValue="Abdelrahman Elrayes" className="h-9 text-sm" />
+          <Input defaultValue={`${user?.first_name || ""} ${user?.last_name || ""}`.trim()} className="h-9 text-sm" />
         </SettingRow>
         <SettingRow
           label="Email address"
           description="Notifications will be sent to this address."
         >
           <Input
-            defaultValue="abdelrahmanelrayes2@gmail.com"
+            defaultValue={user?.email || ""}
             type="email"
             className="h-9 text-sm"
             readOnly

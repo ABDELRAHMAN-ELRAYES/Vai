@@ -8,6 +8,7 @@ import { Loader } from "@/components/loaders/loader";
 
 // Lazy loaded pages
 const Home = lazy(() => import("@/pages/Home"));
+const Confirm = lazy(() => import("@/pages/Confirm"));
 
 
 // Susupense wrapper
@@ -30,6 +31,14 @@ const router = createBrowserRouter([
         ),
       },
     ],
+  },
+  {
+    path: PATHS.CONFIRM,
+    element: (
+      <S>
+        <Confirm />
+      </S>
+    ),
   },
   // Catch all 404
   {
