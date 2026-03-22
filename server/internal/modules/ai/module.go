@@ -5,6 +5,11 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+var (
+	UserRole = "user"
+	AIRole   = "ai"
+)
+
 type Module struct {
 	handler *Handler
 }
@@ -13,9 +18,13 @@ func New(app *app.Application) *Module {
 
 	client := NewClient(app, app.Config.AI.BaseURL)
 
-	repo := NewRepository(app.DB)
-	service := NewService(repo, client)
+	service := NewService(client)
 	handler := NewHandler(app, service)
+
+	err := LoadPrompts()
+	if err != nil {
+		app.Logger.Info("Prompts : ", err)
+	}
 
 	return &Module{
 		handler: handler,

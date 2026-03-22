@@ -7,7 +7,7 @@ import (
 
 var (
 	SMTPSuccessCode = 250
-	MailRetries         = 3
+	MailRetries     = 3
 )
 
 // Embed the templates folder inside the GO binary

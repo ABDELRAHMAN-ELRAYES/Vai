@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/app"
@@ -38,7 +40,11 @@ func (c *Client) GenerateStream(ctx context.Context, prompt string) (<-chan stri
 			Stream: true,
 		}
 
-		data, _ := json.Marshal(reqBody)
+		data, err := json.Marshal(reqBody)
+		if err != nil {
+			errStream <- err
+			return
+		}
 
 		// Make a request to the AI Model
 		req, err := http.NewRequestWithContext(
@@ -67,7 +73,10 @@ func (c *Client) GenerateStream(ctx context.Context, prompt string) (<-chan stri
 		}
 
 		defer resp.Body.Close()
-
+		if resp.StatusCode != http.StatusOK {
+			errStream <- fmt.Errorf("ollama returned status: %d", resp.StatusCode)
+			return
+		}
 		decoder := json.NewDecoder(resp.Body)
 
 		for {
@@ -75,12 +84,19 @@ func (c *Client) GenerateStream(ctx context.Context, prompt string) (<-chan stri
 			var chunk OllamaChunk
 			// Decode the token returned from AI Model and send it throw the token channel
 			if err := decoder.Decode(&chunk); err != nil {
-				errStream <- err
+				if err != io.EOF {
+					errStream <- err
+				}
 				return
 			}
 
 			if chunk.Response != "" || chunk.Thinking != "" {
-				tokenStream <- chunk.Response + chunk.Thinking
+				select {
+				case tokenStream <- chunk.Response + chunk.Thinking:
+				case <-ctx.Done():
+					errStream <- ctx.Err()
+					return
+				}
 			}
 
 			if chunk.Done {

@@ -1,4 +1,5 @@
 package mailer
+
 import (
 	"bytes"
 	"fmt"

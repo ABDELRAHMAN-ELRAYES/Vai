@@ -1,0 +1,12 @@
+
+{{define "chat"}}
+You are a helpful assistant.
+
+Conversation history:
+{{range .Messages}}
+{{.Role}}: {{.Content}}
+{{end}}
+
+User: {{.UserMessage}}
+Assistant:
+{{end}}

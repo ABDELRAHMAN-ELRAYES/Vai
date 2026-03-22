@@ -1,0 +1,180 @@
+package chat
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/db"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/ai"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/validator"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/apierror"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/utils"
+	"go.uber.org/zap"
+)
+
+type Service struct {
+	db        *sql.DB
+	repo      *Repository
+	aiService *ai.Service
+	logger    *zap.SugaredLogger
+}
+
+func NewService(db *sql.DB, repo *Repository, aiService *ai.Service, logger *zap.SugaredLogger) *Service {
+	return &Service{
+		db:        db,
+		repo:      repo,
+		aiService: aiService,
+		logger:    logger,
+	}
+}
+func (service *Service) StartConversation(ctx context.Context, payload CreateFirstConversationPayload) (*Conversation, <-chan string, <-chan error, error) {
+	// Validate request body
+	if err := validator.Validate.Struct(payload); err != nil {
+		return nil, nil, nil, apierror.ErrBadRequest
+	}
+
+	conv := &Conversation{}
+
+	err := db.WithTx(service.db, ctx, func(tx *sql.Tx) error {
+		repo := service.repo.WithTx(tx)
+
+		// 1. Create the conversation
+		conv.Title = payload.Title
+		conv.UserID = payload.UserID
+
+		err := repo.CreateConversation(ctx, conv)
+		if err != nil {
+			return err
+		}
+		// 2. Create the first message attached to the conversation
+		msg := &Message{
+			ConversationID: conv.ID,
+			Content:        payload.Message,
+			Role:           ai.UserRole,
+		}
+		err = repo.CreateMessage(ctx, msg)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	// 3. Generate + Update a new conversation title
+	// Accordin to the first submitted user message
+	go service.handleTitleGeneration(conv.ID, payload.Message)
+
+	// 4. Render the prompt
+	chatPromptData := &ChatPromptData{
+		Messages:    []string{},
+		UserMessage: payload.Message,
+	}
+	chatPrompt, err := ai.RenderPrompt(ai.ChatPrompt, chatPromptData)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	// 5. send the message to LLM
+	tokenChan, errChan := service.aiService.Generate(ctx, chatPrompt)
+
+	// 6. collect the strear tokens
+	replyChan, tokenStream, errStream := service.aiService.CollectTokens(tokenChan, errChan)
+
+	// 7. save the response to the DB
+	go service.saveReply(context.Background(), conv.ID, replyChan)
+
+	// 8. stream the response
+	return conv, tokenStream, errStream, nil
+}
+
+// generate + update the conversation title
+func (service *Service) handleTitleGeneration(convID string, msg string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	title, err := service.generateTitle(ctx, msg)
+	if err != nil {
+		service.logger.Errorf("generateTitle failed: %s — using fallback", err)
+		title = utils.TruncateStr(msg, 50)
+	}
+	updateConversationPayload := &UpdateConversationPayload{
+		ConversationID: convID,
+		Title:          title,
+	}
+	if err := service.UpdateConversation(ctx, updateConversationPayload); err != nil {
+		service.logger.Errorf("updateConversationTitle failed: %s", err)
+	}
+}
+func (service *Service) generateTitle(ctx context.Context, msg string) (string, error) {
+	// 1. Render the title prompt
+	promptData := &TitlePromptData{
+		Message: msg,
+	}
+	prompt, err := ai.RenderPrompt(ai.TitlePrompt, promptData)
+	if err != nil {
+		return "", err
+	}
+	// 2. send the prompt to the LLM
+	tokenChan, errChan := service.aiService.Generate(ctx, prompt)
+
+	// 3. collect the response tokens
+	replyChan, _, _ := service.aiService.CollectTokens(tokenChan, errChan)
+
+	title, ok := <-replyChan
+	if !ok || strings.TrimSpace(title) == "" {
+		return "", fmt.Errorf("empty title response")
+	}
+	return title, nil
+}
+func (service *Service) UpdateConversation(ctx context.Context, payload *UpdateConversationPayload) error {
+	// Validate request body
+	if err := validator.Validate.Struct(payload); err != nil {
+		return apierror.ErrBadRequest
+	}
+
+	conv := &Conversation{
+		ID:    payload.ConversationID,
+		Title: payload.Title,
+	}
+	return service.repo.UpdateConversation(ctx, conv)
+}
+
+// saves the AI reply when it arrives from the reply channel
+func (service *Service) saveReply(
+	ctx context.Context,
+	conversationID string,
+	replyChan <-chan string,
+) {
+	reply, ok := <-replyChan
+	if !ok || reply == "" {
+		return
+	}
+	msg := &Message{
+		ConversationID: conversationID,
+		Content:        reply,
+		Role:           ai.AIRole,
+	}
+	err := service.repo.CreateMessage(ctx, msg)
+
+	if err != nil {
+		// ! Danger
+		// TODO: Background jobs errors may Panic the server
+		service.logger.Errorf("Failed to save the reply: %s", err)
+	}
+}
+
+func (service *Service) CreateMessage(ctx context.Context, payload *CreateMessagePayload) (*Message, error) {
+	msg := &Message{
+		ConversationID: payload.ConversationID,
+		Content:        payload.Content,
+		Role:           payload.Role,
+	}
+	err := service.repo.CreateMessage(ctx, msg)
+	if err != nil {
+		return nil, err
+	}
+	return msg, nil
+}

@@ -7,7 +7,6 @@ import (
 	"time"
 )
 
-
 // Send: fill the email template with the required data, open connection and then send the email via smtp
 func (c *client) Send(ctx context.Context, templateFile, toEmail string, data any) (int, error) {
 
@@ -39,8 +38,6 @@ func (c *client) Send(ctx context.Context, templateFile, toEmail string, data an
 
 	return 0, fmt.Errorf("send mail failed after retries: %w", lastErr)
 }
-
-
 
 func (c *client) deliver(ctx context.Context, toEmail, subject, htmlBody string) error {
 	from := fmt.Sprintf("%s <%s>", c.cfg.FromName, c.cfg.FromAddress)
