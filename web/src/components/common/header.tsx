@@ -22,7 +22,7 @@ export function Header({ pageName }: HeaderProps) {
         {!isAuthenticated && (
           <div className="flex items-center gap-2">
             <Button
-              className="text-sm font-medium px-5"
+              className="rounded-full text-sm font-medium px-5 h-[40px] cursor-pointer"
               onClick={() => {
                 setAuthMode("sign-in");
                 setIsAuthOpen(true);
@@ -32,7 +32,7 @@ export function Header({ pageName }: HeaderProps) {
             </Button>
             <Button
               variant="ghost"
-              className="text-sm px-5 shadow-sm border border-border"
+              className="rounded-full text-sm px-5 shadow-sm border border-border h-[40px] cursor-pointer"
               onClick={() => {
                 setAuthMode("sign-up");
                 setIsAuthOpen(true);

@@ -30,7 +30,7 @@ const Home = () => {
         </div>
 
         <div
-          className={`w-full bg-white rounded-lg border transition-all duration-150 border-border ${focused ? "shadow-sm" : ""}`}
+          className={`w-full bg-white rounded-3xl border transition-all duration-150 border-border ${focused ? "shadow-sm" : ""}`}
         >
           <div className="px-4 pt-4 pb-2">
             <textarea
@@ -61,30 +61,37 @@ const Home = () => {
           <div className="flex items-center justify-between px-3 pb-3">
             <div className="flex items-center gap-1">
               <Button
-                className="p-2 rounded-lg bg-transparent h-10 w-10 hover:bg-gray-50 text-black  transition-colors"
+                className="group flex h-10 items-center justify-center rounded-full bg-transparent px-2 text-black transition-all duration-300 ease-out hover:bg-gray-50 hover:px-4 cursor-pointer"
+                style={{ minWidth: "40px" }}
                 title="Attach file"
               >
-                <svg
-                  width="24"
-                  height="24"
-                  className="h-6 w-6"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
-                  />
-                </svg>
+                <div className="flex items-center justify-center overflow-hidden">
+                  <svg
+                    width="24"
+                    height="24"
+                    className="h-5 w-5 shrink-0 text-muted-foreground transition-colors group-hover:text-black"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+                    />
+                  </svg>
+                  <span className="max-w-0 opacity-0 transition-all duration-300 ease-out group-hover:ml-1.5 group-hover:max-w-[48px] group-hover:opacity-100 font-medium text-sm whitespace-nowrap">
+                    Upload
+                  </span>
+                </div>
               </Button>
             </div>
 
             <Button
               disabled={!canSend}
-              className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all bg-black text-white shadow-sm`}
+              className={`group flex h-10 items-center justify-center rounded-full bg-black px-2 shadow-sm transition-all duration-300 ease-out hover:px-4 text-white cursor-pointer`}
+              style={{ minWidth: "40px" }}
               onClick={() => {
                 if (!isAuthenticated) {
                   setAuthMode("sign-in");
@@ -95,7 +102,12 @@ const Home = () => {
                 toast.info("Sending message...");
               }}
             >
-              <ArrowRight className="w-6 h-6" />
+              <div className="flex items-center justify-center overflow-hidden">
+                <span className="max-w-0 opacity-0 transition-all duration-300 ease-out group-hover:max-w-[42px] group-hover:opacity-100 group-hover:mr-1 font-medium text-sm whitespace-nowrap">
+                  Send
+                </span>
+                <ArrowRight className="h-5 w-5 shrink-0" />
+              </div>
             </Button>
           </div>
         </div>

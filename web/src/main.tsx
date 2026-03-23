@@ -6,15 +6,18 @@ import AppRouter from "./router/index.tsx";
 import "./index.css";
 import { AuthProvider } from "./context/AuthContext.tsx";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { Toaster } from "sonner";
+import { Toaster } from "./components/ui/sonner.tsx";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <AppRouter />
-        <Toaster position="top-right" richColors />
-        <ReactQueryDevtools initialIsOpen={false} />
+        <TooltipProvider>
+          <AppRouter />
+          <Toaster position="top-right" richColors />
+          <ReactQueryDevtools initialIsOpen={false} />
+        </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>
   </StrictMode>,

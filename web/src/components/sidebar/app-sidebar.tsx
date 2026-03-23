@@ -20,19 +20,18 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuGroup,
 } from "@/components/ui/dropdown-menu";
 import {
   MagnifyingGlass,
   Gear,
-  Layout,
-  Question,
   SignOut,
   CaretRight,
 } from "@phosphor-icons/react/dist/ssr";
 import {
   activeProjects,
-  footerItems,
-  type SidebarFooterItemId,
 } from "@/constants/sidebar";
 import { SettingsDialog } from "@/components/settings/SettingsDialog";
 import { useAuth } from "@/hooks/auth/useAuth";
@@ -41,15 +40,6 @@ import { LoginDialog } from "@/components/auth/LoginDialog";
 import { RegisterDialog } from "@/components/auth/RegisterDialog";
 
 import { SquarePen } from "lucide-react";
-
-const footerItemIcons: Record<
-  SidebarFooterItemId,
-  React.ComponentType<{ className?: string }>
-> = {
-  settings: Gear,
-  templates: Layout,
-  help: Question,
-};
 
 export function AppSidebar() {
   const {
@@ -69,28 +59,30 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar className="bg-transparent border-border/40 border-r-0 shadow-none border-none">
-      <SidebarHeader className="p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flexitems-center justify-center rounded-lg ">
-              <img
-                src="/images/logo/logo.png"
-                alt="Logo"
-                className="h-12 w-12"
-              />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-sm font-semibold">Vai</span>
-              <span className="text-xs text-muted-foreground">Pro plan</span>
-            </div>
-          </div>
-        </div>
+    <Sidebar collapsible="icon" variant="inset">
+      <SidebarHeader>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg" className="px-0">
+              <div className="bg-primary flex aspect-square size-10 items-center justify-center rounded-lg">
+                <img
+                  src="/images/logo/logo-white.png"
+                  alt="Logo"
+                  className="size-8"
+                />
+              </div>
+              <div className="grid flex-1 text-left text-sm leading-tight">
+                <span className="truncate font-semibold">Vai</span>
+                <span className="truncate text-xs text-muted-foreground">Pro plan</span>
+              </div>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarHeader>
 
       <SidebarContent className="px-0 gap-0">
         {isAuthenticated && (
-          <SidebarGroup>
+          <SidebarGroup className="group-data-[collapsible=icon]:hidden">
             <div className="relative px-0 py-0">
               <MagnifyingGlass className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -108,7 +100,8 @@ export function AppSidebar() {
             <SidebarMenu>
               <SidebarMenuItem key={"new-chat"}>
                 <SidebarMenuButton
-                  className="h-9 rounded-lg px-3 text-muted-foreground"
+                  tooltip="New Chat"
+                  className="text-muted-foreground hover:text-primary shadow-none hover:shadow-sm font-medium transition-all duration-300 cursor-pointer"
                   onClick={() => {
                     if (!isAuthenticated) {
                       openAuth("sign-in");
@@ -124,19 +117,19 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
         {isAuthenticated && (
-          <SidebarGroup>
-            <SidebarGroupLabel className="px-3 text-xs font-medium text-muted-foreground">
+          <SidebarGroup className="group-data-[collapsible=icon]:hidden">
+            <SidebarGroupLabel className="px-3 text-xs font-medium text-muted-foreground mt-2">
               Your Chats
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {activeProjects.map((project) => (
                   <SidebarMenuItem key={project.name}>
-                    <SidebarMenuButton className="h-9 rounded-lg px-3 group">
+                    <SidebarMenuButton className="h-9 rounded-lg px-3 group text-muted-foreground hover:text-foreground">
                       <span className="flex-1 truncate text-sm">
                         {project.name}
                       </span>
-                      <span className="opacity-0 group-hover:opacity-100 rounded p-0.5 hover:bg-accent">
+                      <span className="opacity-0 group-hover:opacity-100 rounded p-0.5 hover:bg-accent group-data-[collapsible=icon]:hidden">
                         <span className="text-muted-foreground text-lg">
                           ···
                         </span>
@@ -151,84 +144,94 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="border-t border-border/40 p-2">
-        {isAuthenticated && (
-          <SidebarMenu>
-            {footerItems.map((item) => (
-              <SidebarMenuItem key={item.label}>
-                <SidebarMenuButton
-                  className="h-9 rounded-lg px-3 text-muted-foreground"
-                  onClick={() => {
-                    if (item.id === "settings") {
-                      setIsSettingsOpen(true);
-                    }
-                  }}
-                >
-                  {(() => {
-                    const Icon = footerItemIcons[item.id];
-                    return Icon ? <Icon className="h-[18px] w-[18px]" /> : null;
-                  })()}
-                  <span>{item.label}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
-        )}
-
         {isAuthenticated && user ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="mt-2 flex w-full items-center gap-3 rounded-lg p-2 text-left hover:bg-accent cursor-pointer"
-              >
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src="/avatar-profile.jpg" />
-                  <AvatarFallback>
-                    {user.first_name?.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex flex-1 flex-col truncate">
-                  <span className="text-sm font-medium">
-                    {user.first_name} {user.last_name}
-                  </span>
-                  <span className="text-xs text-muted-foreground w-full truncate">
-                    {user.email}
-                  </span>
-                </div>
-                <CaretRight className="h-4 w-4 text-muted-foreground" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent side="right" align="end" className="w-40">
-              <DropdownMenuItem
-                className="cursor-pointer text-destructive focus:text-destructive"
-                onSelect={logout}
-              >
-                <SignOut className="h-4 w-4" />
-                Logout
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <SidebarMenuButton
+                    size="lg"
+                    className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                  >
+                    <Avatar className="h-10 w-10 rounded-lg">
+                      <AvatarImage src="/avatar-profile.jpg" />
+                      <AvatarFallback className="rounded-lg">
+                        {user.first_name?.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="grid flex-1 text-left text-sm leading-tight">
+                      <span className="truncate font-semibold">
+                        {user.first_name} {user.last_name}
+                      </span>
+                      <span className="truncate text-xs text-muted-foreground">
+                        {user.email}
+                      </span>
+                    </div>
+                    <CaretRight className="ml-auto size-4" />
+                  </SidebarMenuButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
+                  side="right"
+                  align="end"
+                  sideOffset={4}
+                >
+                  <DropdownMenuLabel className="p-0 font-normal">
+                    <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+                      <Avatar className="h-8 w-8 rounded-lg">
+                        <AvatarImage src="/avatar-profile.jpg" />
+                        <AvatarFallback className="rounded-lg">
+                          {user.first_name?.charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="grid flex-1 text-left text-sm leading-tight">
+                        <span className="truncate font-semibold">
+                          {user.first_name} {user.last_name}
+                        </span>
+                        <span className="truncate text-xs text-muted-foreground">
+                          {user.email}
+                        </span>
+                      </div>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuGroup>
+                    <DropdownMenuItem className="cursor-pointer" onSelect={() => setIsSettingsOpen(true)}>
+                      <Gear className="h-4 w-4 mr-2" />
+                      <span>Account Settings</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10"
+                    onSelect={logout}
+                  >
+                    <SignOut className="h-4 w-4 mr-2" />
+                    <span>Logout</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </SidebarMenuItem>
+          </SidebarMenu>
         ) : (
-          <>
-            <div>
-              <div className="flex flex-col gap-2 px-4 mb-4">
-                <h1 className="text-sm font-semibold mb-2">
-                  Get responses tailored to you
-                </h1>
-                <p className="text-xs text-muted-foreground">
-                  Log in to get answers based on entered docs
-                </p>
-              </div>
-
-              <Button
-                variant="outline"
-                className="w-full mt-2 h-[50px]"
-                onClick={() => openAuth("sign-in")}
-              >
-                Log in
-              </Button>
+          <div className="group-data-[collapsible=icon]:hidden">
+            <div className="flex flex-col gap-2 px-4 mb-4">
+              <h1 className="text-sm font-semibold mb-2">
+                Get responses tailored to you
+              </h1>
+              <p className="text-xs text-muted-foreground">
+                Log in to get answers based on entered docs
+              </p>
             </div>
-          </>
+
+            <Button
+              variant="outline"
+              className="w-full mt-2 h-[40px] rounded-full cursor-pointer"
+              onClick={() => openAuth("sign-in")}
+            >
+              Log in
+            </Button>
+          </div>
         )}
       </SidebarFooter>
 

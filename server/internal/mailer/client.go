@@ -30,7 +30,7 @@ func New(cfg *config.Mail) (Client, error) {
 	// 2. Register Custom functions (so templates can call them)
 	// 3. Load files from embedded file system
 
-	tmpl, err := template.New("").Funcs(funcMap).ParseFS(FS, "templates/mail/*.tmpl")
+	tmpl, err := template.New("").Funcs(funcMap).ParseFS(FS, "templates/*.tmpl")
 	if err != nil {
 		return nil, fmt.Errorf("mailer: parse templates: %w", err)
 	}

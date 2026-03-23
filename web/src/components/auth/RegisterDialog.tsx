@@ -126,7 +126,7 @@ export function RegisterDialog({
               <Button
                 type="button"
                 variant="outline"
-                className="w-full h-11 justify-center gap-2 rounded-xl border-border bg-muted/20"
+                className="w-full h-11 justify-center gap-2 rounded-full border-border bg-muted/20"
                 onClick={() => handleSocialClick("google")}
               >
                 <GoogleIcon />
@@ -254,7 +254,7 @@ export function RegisterDialog({
 
             <Button
               type="button"
-              className="h-11 w-full rounded-xl"
+              className="h-11 w-full rounded-full"
               onClick={handleContinue}
               disabled={!canContinueSignUp || isLoading}
             >
