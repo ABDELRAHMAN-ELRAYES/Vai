@@ -16,15 +16,3 @@ type Message struct {
 	Role           string `json:"role"`
 	CreatedAt      string `json:"created_at"`
 }
-type UpdateConversationPayload struct {
-	ConversationID string
-	Title          string
-}
-type ChatPromptData struct {
-	Messages    []string
-	UserMessage string
-}
-
-type TitlePromptData struct {
-	Message string
-}

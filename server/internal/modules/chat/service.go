@@ -9,6 +9,7 @@ import (
 
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/db"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/ai"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/users"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/validator"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/apierror"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/utils"
@@ -16,21 +17,23 @@ import (
 )
 
 type Service struct {
-	db        *sql.DB
-	repo      *Repository
-	aiService *ai.Service
-	logger    *zap.SugaredLogger
+	db          *sql.DB
+	repo        *Repository
+	aiService   *ai.Service
+	logger      *zap.SugaredLogger
+	userService *users.Service
 }
 
-func NewService(db *sql.DB, repo *Repository, aiService *ai.Service, logger *zap.SugaredLogger) *Service {
+func NewService(db *sql.DB, repo *Repository, aiService *ai.Service, logger *zap.SugaredLogger, userService *users.Service) *Service {
 	return &Service{
-		db:        db,
-		repo:      repo,
-		aiService: aiService,
-		logger:    logger,
+		db:          db,
+		repo:        repo,
+		aiService:   aiService,
+		logger:      logger,
+		userService: userService,
 	}
 }
-func (service *Service) StartConversation(ctx context.Context, payload CreateFirstConversationPayload) (*Conversation, <-chan string, <-chan error, error) {
+func (service *Service) StartConversation(ctx context.Context, payload StartConversationPayload) (*Conversation, <-chan string, <-chan error, error) {
 	// Validate request body
 	if err := validator.Validate.Struct(payload); err != nil {
 		return nil, nil, nil, apierror.ErrBadRequest

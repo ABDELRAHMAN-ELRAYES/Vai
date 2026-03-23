@@ -1,7 +1,19 @@
 package chat
 
-import "github.com/go-chi/chi/v5"
+import (
+	"context"
 
-func RegisterRoutes(r chi.Router) {
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/middleware"
+	"github.com/go-chi/chi/v5"
+)
 
+func RegisterRoutes(r chi.Router, handler *Handler) {
+	fetchUser := func(ctx context.Context, id string) (any, error) {
+		return handler.service.userService.GetUser(ctx, id)
+	}
+
+	r.Route("/conversations", func(r chi.Router) {
+		r.Use(middleware.Protect(handler.app, fetchUser))
+		r.Post("/", handler.StartConversation)
+	})
 }

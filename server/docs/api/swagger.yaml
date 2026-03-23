@@ -41,6 +41,13 @@ definitions:
       user:
         $ref: '#/definitions/users.User'
     type: object
+  chat.StartConversationDTO:
+    properties:
+      message:
+        type: string
+    required:
+    - message
+    type: object
   users.CreateUserPayload:
     properties:
       email:
@@ -72,6 +79,21 @@ definitions:
       last_name:
         type: string
     type: object
+  users.UserResponse:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      first_name:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      last_name:
+        type: string
+    type: object
 host: vai.swagger.io
 info:
   contact:
@@ -86,6 +108,30 @@ info:
   title: Vai API
   version: "1.0"
 paths:
+  /ai/generate:
+    get:
+      description: Streams an AI generated response based on the provided prompt
+      parameters:
+      - description: The prompt for the AI
+        in: query
+        name: prompt
+        required: true
+        type: string
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: Stream of tokens
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema: {}
+      security:
+      - ApiKeyAuth: []
+      summary: Generate AI response
+      tags:
+      - ai
   /auth/activate/{token}:
     post:
       description: Activates a user using a verification token
@@ -171,6 +217,29 @@ paths:
       summary: Logout user
       tags:
       - authentication
+  /auth/me:
+    get:
+      consumes:
+      - application/json
+      description: Fetches the profile of the currently authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: The current User data
+          schema:
+            $ref: '#/definitions/users.UserResponse'
+        "401":
+          description: Unauthorized
+          schema: {}
+        "500":
+          description: Internal Server Error
+          schema: {}
+      security:
+      - ApiKeyAuth: []
+      summary: Get current user
+      tags:
+      - authentication
   /auth/register:
     post:
       consumes:
@@ -199,6 +268,43 @@ paths:
       summary: Register a user
       tags:
       - authentication
+  /conversations:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new conversation, sends the first message to the LLM,
+        and streams the response back using Server-Sent Events (SSE). The first SSE
+        event contains the conversation_id, subsequent events contain tokens, and
+        the final event is [DONE].
+      parameters:
+      - description: First message payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/chat.StartConversationDTO'
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: 'SSE stream — first event: {conversation_id}, then tokens,
+            then [DONE]'
+          schema:
+            type: string
+        "400":
+          description: Invalid request body
+          schema: {}
+        "401":
+          description: Unauthorized
+          schema: {}
+        "500":
+          description: Internal server error
+          schema: {}
+      security:
+      - BearerAuth: []
+      summary: Start a new conversation
+      tags:
+      - conversations
   /health:
     get:
       description: Returns service health and version information

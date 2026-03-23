@@ -11,6 +11,7 @@ var (
 )
 
 type Module struct {
+	Service *Service
 	handler *Handler
 }
 
@@ -27,6 +28,7 @@ func New(app *app.Application) *Module {
 	}
 
 	return &Module{
+		Service: service,
 		handler: handler,
 	}
 }
