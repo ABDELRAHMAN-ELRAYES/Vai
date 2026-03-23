@@ -108,11 +108,11 @@ export function RegisterDialog({
       <DialogContent className="sm:max-w-[460px] p-0 gap-0 rounded-3xl border border-border shadow-2xl">
         <div className="px-6 pt-7 pb-6">
           <DialogHeader className="items-center text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-black text-primary-foreground shadow-[inset_0_-5px_6.6px_0_rgba(0,0,0,0.25)]">
+            <div className="flex size-12 items-center justify-center rounded-full text-primary-foreground">
               <img
-                src="/images/logo/logo-white.png"
+                src="/images/logo/logo.png"
                 alt="Vai"
-                className="h-6 w-6"
+                className="size-12"
               />
             </div>
             <DialogTitle className="text-xl">Create your account</DialogTitle>
@@ -254,7 +254,7 @@ export function RegisterDialog({
 
             <Button
               type="button"
-              className="h-11 w-full rounded-full"
+              className="h-11 w-full rounded-full cursor-pointer"
               onClick={handleContinue}
               disabled={!canContinueSignUp || isLoading}
             >
@@ -275,7 +275,7 @@ export function RegisterDialog({
             Already have an account?{" "}
             <button
               type="button"
-              className="font-semibold text-foreground hover:underline"
+              className="font-semibold text-foreground hover:underline cursor-pointer"
               onClick={onSwitchToLogin}
             >
               Sign in

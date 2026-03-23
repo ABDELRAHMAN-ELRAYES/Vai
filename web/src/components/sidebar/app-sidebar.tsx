@@ -64,11 +64,11 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" className="px-0">
-              <div className="bg-primary flex aspect-square size-10 items-center justify-center rounded-lg">
+              <div className="relative flex w-8 h-12 items-center justify-center overflow-hidden rounded-lg group-data-[collapsible=icon]:rounded-md transition-all duration-300 ease-out">
                 <img
-                  src="/images/logo/logo-white.png"
-                  alt="Logo"
-                  className="size-8"
+                  src="/images/logo/logo.png"
+                  alt="Vai"
+                  className="h-full w-full object-contain"
                 />
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
