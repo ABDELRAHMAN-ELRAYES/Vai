@@ -33,11 +33,11 @@ import {
 import {
   activeProjects,
 } from "@/constants/sidebar";
-import { SettingsDialog } from "@/components/settings/SettingsDialog";
+import { SettingsDialog } from "@/components/features/settings/SettingsDialog";
 import { useAuth } from "@/hooks/auth/useAuth";
 import { Button } from "@/components/ui/button";
-import { LoginDialog } from "@/components/auth/LoginDialog";
-import { RegisterDialog } from "@/components/auth/RegisterDialog";
+import { LoginDialog } from "@/components/features/auth/LoginDialog";
+import { RegisterDialog } from "@/components/features/auth/RegisterDialog";
 
 import { SquarePen } from "lucide-react";
 

@@ -3,11 +3,12 @@ import { parseResponseError, NetworkError, TimeoutError } from "./errors";
 import type { RequestOptions } from "@/types/api/request";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
-const TIMEOUT_MS = 15_000;
+const TIMEOUT_MS = 30_000;
 
 async function request<T>(
   path: string,
   options: RequestOptions = {},
+  isStream: boolean,
 ): Promise<T> {
   const { params, body, ...fetchInit } = options;
 
@@ -53,7 +54,7 @@ async function request<T>(
 
     if (!res.ok) throw await parseResponseError(res);
     if (res.status === 204) return undefined as T; // On No contentt
-    return (await res.json()) as T;
+    return isStream ? (res as T) : ((await res.json()) as T);
   } catch (err) {
     if ((err as Error)?.name === "AbortError")
       throw new TimeoutError(TIMEOUT_MS);
@@ -66,18 +67,33 @@ async function request<T>(
 }
 
 export const apiClient = {
-  get: <T>(path: string, options?: RequestOptions) =>
-    request<T>(path, { method: "GET", ...options }),
+  get: <T>(path: string, options?: RequestOptions, isStream: boolean = false) =>
+    request<T>(path, { method: "GET", ...options }, isStream),
 
-  post: <T>(path: string, body?: unknown, options?: RequestOptions) =>
-    request<T>(path, { method: "POST", body, ...options }),
+  post: <T>(
+    path: string,
+    body?: unknown,
+    options?: RequestOptions,
+    isStream: boolean = false,
+  ) => request<T>(path, { method: "POST", body, ...options }, isStream),
 
-  patch: <T>(path: string, body?: unknown, options?: RequestOptions) =>
-    request<T>(path, { method: "PATCH", body, ...options }),
+  patch: <T>(
+    path: string,
+    body?: unknown,
+    options?: RequestOptions,
+    isStream: boolean = false,
+  ) => request<T>(path, { method: "PATCH", body, ...options }, isStream),
 
-  put: <T>(path: string, body?: unknown, options?: RequestOptions) =>
-    request<T>(path, { method: "PUT", body, ...options }),
+  put: <T>(
+    path: string,
+    body?: unknown,
+    options?: RequestOptions,
+    isStream: boolean = false,
+  ) => request<T>(path, { method: "PUT", body, ...options }, isStream),
 
-  delete: <T = void>(path: string, options?: RequestOptions) =>
-    request<T>(path, { method: "DELETE", ...options }),
+  delete: <T = void>(
+    path: string,
+    options?: RequestOptions,
+    isStream: boolean = false,
+  ) => request<T>(path, { method: "DELETE", ...options }, isStream),
 };

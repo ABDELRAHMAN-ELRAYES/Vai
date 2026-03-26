@@ -19,7 +19,7 @@ export const useLogin = (onSuccess: (user: User) => void) => {
   return useMutation({
     mutationFn: authApi.login,
     onSuccess: (response) => {
-      console.log(response)
+      console.log(response);
       onSuccess(response.data.user);
       queryClient.setQueryData(["auth", "me"], { data: response.data.user });
       toast.success("Welcome back!");

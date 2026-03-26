@@ -95,7 +95,9 @@ export function RegisterDialog({
         onOpenChange(false);
       } catch (error) {
         if (error instanceof ValidationError) {
-          form.setError("email", { message: "Email already exists or invalid data" });
+          form.setError("email", {
+            message: "Email already exists or invalid data",
+          });
         }
       }
     })();
@@ -109,11 +111,7 @@ export function RegisterDialog({
         <div className="px-6 pt-7 pb-6">
           <DialogHeader className="items-center text-center">
             <div className="flex size-12 items-center justify-center rounded-full text-primary-foreground">
-              <img
-                src="/images/logo/logo.png"
-                alt="Vai"
-                className="size-12"
-              />
+              <img src="/images/logo/logo.png" alt="Vai" className="size-12" />
             </div>
             <DialogTitle className="text-xl">Create your account</DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground">

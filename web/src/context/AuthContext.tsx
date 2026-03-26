@@ -30,7 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (me) {
-      const {data: userData} = me;
+      const { data: userData } = me;
       setUser(userData);
     } else if (!isInitialLoading) {
       setUser(null);
