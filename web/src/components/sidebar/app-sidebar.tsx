@@ -30,11 +30,9 @@ import {
   SignOut,
   CaretRight,
 } from "@phosphor-icons/react/dist/ssr";
-import {
-  activeProjects,
-} from "@/constants/sidebar";
+import { activeProjects } from "@/constants/sidebar";
 import { SettingsDialog } from "@/components/features/settings/SettingsDialog";
-import { useAuth } from "@/hooks/auth/useAuth";
+import { useAuth } from "@/hooks/auth/use-auth";
 import { Button } from "@/components/ui/button";
 import { LoginDialog } from "@/components/features/auth/LoginDialog";
 import { RegisterDialog } from "@/components/features/auth/RegisterDialog";
@@ -73,7 +71,9 @@ export function AppSidebar() {
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">Vai</span>
-                <span className="truncate text-xs text-muted-foreground">Pro plan</span>
+                <span className="truncate text-xs text-muted-foreground">
+                  Pro plan
+                </span>
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -196,7 +196,10 @@ export function AppSidebar() {
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuGroup>
-                    <DropdownMenuItem className="cursor-pointer" onSelect={() => setIsSettingsOpen(true)}>
+                    <DropdownMenuItem
+                      className="cursor-pointer"
+                      onSelect={() => setIsSettingsOpen(true)}
+                    >
                       <Gear className="h-4 w-4 mr-2" />
                       <span>Account Settings</span>
                     </DropdownMenuItem>

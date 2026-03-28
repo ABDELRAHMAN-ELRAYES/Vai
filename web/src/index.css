@@ -53,17 +53,20 @@
 }
 
 
+html,
+body,
+#root {
+  height: 100svh;
+  width: 100%;
+}
+
 body {
   margin: 0;
   display: flex;
-  place-items: center;
   min-width: 320px;
-  min-height: 100vh;
+  overflow: hidden;
 }
 
-#root {
-  width: 100%
-}
 * {
   outline: none !important;
 }

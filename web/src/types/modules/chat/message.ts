@@ -1,8 +1,8 @@
 export interface Message {
-  role: "user" | "ai";
-  id: string;
+  id?: string;
   content: string;
-  timestamp: Date;
+  role: "user" | "ai";
+  createdAt?: Date;
   isLoading?: boolean;
   error?: string;
 }

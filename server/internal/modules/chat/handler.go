@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -89,8 +90,12 @@ func (handler *Handler) StartConversation(w http.ResponseWriter, r *http.Request
 	}
 
 	// 5.3 Send the conversation ID as the first Event
-	convIDEvent := fmt.Sprintf("data: {\"conversation_id\": \"%s\"}\n\n", conversation.ID)
-	_, _ = w.Write([]byte(convIDEvent))
+	infoData := map[string]string{
+		"conversationId": conversation.ID,
+		"type":           "info",
+	}
+	infoJSON, _ := json.Marshal(infoData)
+	_, _ = w.Write([]byte(fmt.Sprintf("data: %s\n\n", infoJSON)))
 	flusher.Flush()
 
 	// 5.4 Stream the reply
@@ -103,7 +108,12 @@ func (handler *Handler) StartConversation(w http.ResponseWriter, r *http.Request
 				flusher.Flush()
 				return
 			}
-			_, _ = w.Write([]byte("data: " + token + "\n\n"))
+			msgData := map[string]string{
+				"token": token,
+				"type":  "token",
+			}
+			jsonData, _ := json.Marshal(msgData)
+			_, _ = w.Write([]byte(fmt.Sprintf("data: %s\n\n", jsonData)))
 			flusher.Flush()
 
 		case err, ok := <-errStream:

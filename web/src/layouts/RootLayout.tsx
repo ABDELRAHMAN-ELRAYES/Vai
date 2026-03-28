@@ -26,9 +26,12 @@ export default function RootLayout() {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        <div className="flex flex-1 flex-col bg-white m-2 border border-border rounded-lg min-w-0">
+        <div className="flex flex-1 flex-col bg-white m-2 border border-border rounded-lg min-w-0 overflow-hidden">
           {showHeader && <Header pageName={pageName} />}
-          <Outlet />
+          <main className="flex flex-col flex-1 min-h-0 overflow-hidden">
+            <Outlet />
+          </main>
+
         </div>
       </SidebarInset>
     </SidebarProvider>

@@ -69,7 +69,8 @@ func (service *Service) StartConversation(ctx context.Context, payload StartConv
 	}
 	// 3. Generate + Update a new conversation title
 	// Accordin to the first submitted user message
-	go service.handleTitleGeneration(conv.ID, payload.Message)
+	// ! Error, Context Done
+	// go service.handleTitleGeneration(conv.ID, payload.Message)
 
 	// 4. Render the prompt
 	chatPromptData := &ChatPromptData{
@@ -122,10 +123,10 @@ func (service *Service) generateTitle(ctx context.Context, msg string) (string, 
 	}
 	// 2. send the prompt to the LLM
 	tokenChan, errChan := service.aiService.Generate(ctx, prompt)
+	service.logger.Info("Title result : ",<-tokenChan,"Error: ",<-errChan)
 
 	// 3. collect the response tokens
 	replyChan, _, _ := service.aiService.CollectTokens(tokenChan, errChan)
-
 	title, ok := <-replyChan
 	if !ok || strings.TrimSpace(title) == "" {
 		return "", fmt.Errorf("empty title response")

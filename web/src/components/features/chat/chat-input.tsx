@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hooks/auth/useAuth";
+import { useAuth } from "@/hooks/auth/use-auth";
 import { ArrowRight, FileUp } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -37,8 +37,10 @@ export const ChatInput = memo(
       }
       // TODO: Send message
       toast.info("Sending message...");
+
       onSend(input.trim());
       setInput("");
+
       inputRef.current?.focus();
     }, [input, isLoading, disabled, onSend]);
 
@@ -46,17 +48,10 @@ export const ChatInput = memo(
       (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (e.key === "Enter" && !e.shiftKey && canSend) {
           e.preventDefault();
-          if (!isAuthenticated) {
-            setAuthMode("sign-in");
-            setIsAuthOpen(true);
-            return;
-          }
-          // TODO: Send message
-          onSend(input);
-          toast.info("Sending message...");
+          handleSend();
         }
       },
-      [handleSend],
+      [canSend, handleSend],
     );
 
     return (

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useAuth } from "@/hooks/auth/useAuth";
+import { useAuth } from "@/hooks/auth/use-auth";
 import { Loader2, CheckCircle, XCircle } from "lucide-react";
 import { PATHS } from "@/router/paths";
 

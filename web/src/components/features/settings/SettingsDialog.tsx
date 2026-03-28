@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useAuth } from "@/hooks/auth/useAuth";
+import { useAuth } from "@/hooks/auth/use-auth";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -80,8 +80,6 @@ function AccountSettingsPane() {
     });
   };
 
-  
-
   return (
     <div className="space-y-8">
       <div>
@@ -101,7 +99,9 @@ function AccountSettingsPane() {
           <div className="flex flex-wrap items-center gap-4">
             <Avatar className="h-16 w-16">
               <AvatarImage src={photoPreview} />
-              <AvatarFallback>{user?.first_name?.charAt(0)?.toUpperCase() || "U"}</AvatarFallback>
+              <AvatarFallback>
+                {user?.first_name?.charAt(0)?.toUpperCase() || "U"}
+              </AvatarFallback>
             </Avatar>
             <div className="flex flex-wrap items-center gap-2">
               <Button
@@ -124,7 +124,10 @@ function AccountSettingsPane() {
           </div>
         </SettingRow>
         <SettingRow label="Full name">
-          <Input defaultValue={`${user?.first_name || ""} ${user?.last_name || ""}`.trim()} className="h-9 text-sm" />
+          <Input
+            defaultValue={`${user?.first_name || ""} ${user?.last_name || ""}`.trim()}
+            className="h-9 text-sm"
+          />
         </SettingRow>
         <SettingRow
           label="Email address"
