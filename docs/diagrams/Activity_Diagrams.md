@@ -249,9 +249,10 @@ flowchart TD
     D --> E{Qdrant delete\nsuccessful?}
     E -->|No - log error| F[Log error, continue]
     F --> G
-    E -->|Yes| G[DELETE FROM users\nWHERE id = userID]
-    G --> H[PostgreSQL CASCADE deletes:\noauth_accounts\nrefresh_tokens\nverification_tokens\npassword_reset_tokens\ndocuments\nchat_sessions → chat_messages]
-    H --> I[Clear auth cookies\nSet-Cookie: Max-Age=0]
+    G -->|Yes| G2[DELETE FROM users WHERE id = userID]
+    G2 --> H[PostgreSQL CASCADE deletes documents, sessions, tokens, etc.]
+    H --> I[Clear auth cookies (Set-Cookie: Max-Age=0)]
+
     I --> J[Return 204 No Content]
     J --> End2([🟢 End])
 ```

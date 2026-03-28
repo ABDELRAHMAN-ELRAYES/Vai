@@ -113,14 +113,14 @@ graph LR
 flowchart LR
     File["📄 Text File\n(multipart upload)"]
     Chunker["Chunker\n500-char chunks\n100-char overlap"]
-    Embed["Ollama Embeddings\nnomic-embed-text:v1.5\n→ 768-dim vector"]
+    Embed["Ollama Embeddings\nnomic-embed-text:v1.5\n-> 768-dim vector"]
     Qdrant[("Qdrant\nUpsert vectors\n+ payload")]
     PG[("PostgreSQL\nInsert document\nmetadata")]
-    Response["✅ Response\n{document_id, chunks}"]
+    Response["✅ Response\n(document_id, chunks)"]
 
     File --> Chunker
-    Chunker -->|[]Chunk| Embed
-    Embed -->|[]float32 per chunk| Qdrant
+    Chunker -->|"[]Chunk"| Embed
+    Embed -->|"[]float32 per chunk"| Qdrant
     Qdrant --> PG
     PG --> Response
 ```

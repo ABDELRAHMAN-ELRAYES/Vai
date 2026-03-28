@@ -82,8 +82,8 @@ sequenceDiagram
     AS->>DB: INSERT INTO refresh_tokens (user_id, sha256(token), expires_at=+7d)
     DB-->>AS: ok
     AS-->>H: TokenPair{accessToken, refreshToken}
-    H->>H: Set-Cookie: access_token=<jwt>; HttpOnly; Secure; SameSite=Strict; Max-Age=900
-    H->>H: Set-Cookie: refresh_token=<token>; HttpOnly; Secure; SameSite=Strict; Path=/auth/refresh; Max-Age=604800
+    H->>H: Set access_token cookie (HttpOnly, Secure, Max-Age=900)
+    H->>H: Set refresh_token cookie (HttpOnly, Secure, Path=/auth/refresh)
     H-->>C: 200 OK {id, email, display_name}
 ```
 
@@ -135,10 +135,10 @@ sequenceDiagram
     H->>AS: GenerateOAuthState()
     AS-->>H: state (random string)
     H->>H: Set-Cookie: oauth_state=<state>; HttpOnly; Max-Age=300
-    H-->>C: 302 Redirect → accounts.google.com/o/oauth2/auth?client_id=...&state=...&scope=openid+email+profile
+    H-->>C: 302 Redirect -> accounts.google.com/o/oauth2/auth?...
 
     C->>G: (User authenticates at Google, grants consent)
-    G-->>C: 302 Redirect → /auth/google/callback?code=<auth_code>&state=<state>
+    G-->>C: 302 Redirect -> /auth/google/callback?code=<auth_code>&state=<state>
 
     C->>H: GET /auth/google/callback?code=...&state=...
     H->>H: Read oauth_state cookie, compare to state param

@@ -90,11 +90,11 @@ flowchart TD
     P2_5["P2.5\nEnsure Qdrant\nCollection Exists"]
     P2_6["P2.6\nUpsert Vectors\nto Qdrant"]
     P2_7["P2.7\nInsert Document\nMetadata to DB"]
-    End(["✅ Response\n{document_id, chunks}"])
+    End(["✅ Response\n(document_id, chunks)"])
 
     FS[("Filesystem\ntemp file")]
     OL["Ollama\n/api/embeddings\nnomic-embed-text:v1.5"]
-    QD[("Qdrant\nuser_{userID}")]
+    QD[("Qdrant\nuser_userID")]
     DB[("PostgreSQL\ndocuments table")]
 
     Start --> P2_1
@@ -107,7 +107,7 @@ flowchart TD
     OL -->|"[]float32 (768)"| P2_4
     P2_4 -->|"chunk vectors"| P2_5
     P2_5 --> P2_6
-    P2_6 -->|"points: {id, vector, payload}"| QD
+    P2_6 -->|"points: (id, vector, payload)"| QD
     QD --> P2_7
     P2_7 -->|"metadata record"| DB
     DB --> End
