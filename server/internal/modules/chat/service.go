@@ -182,3 +182,11 @@ func (service *Service) CreateMessage(ctx context.Context, payload *CreateMessag
 	}
 	return msg, nil
 }
+
+func (service *Service) GetConversations(ctx context.Context, userID string) ([]*Conversation, error) {
+	return service.repo.GetConversationsByUserID(ctx, userID)
+}
+
+func (service *Service) DeleteConversation(ctx context.Context, id string) error {
+	return service.repo.DeleteConversation(ctx, id)
+}

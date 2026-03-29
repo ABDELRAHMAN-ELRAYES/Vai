@@ -15,5 +15,10 @@ func RegisterRoutes(r chi.Router, handler *Handler) {
 	r.Route("/conversations", func(r chi.Router) {
 		r.Use(middleware.Protect(handler.app, fetchUser))
 		r.Post("/", handler.StartConversation)
+		r.Get("/", handler.GetConversations)
+		r.Route("/{id}", func(r chi.Router) {
+			r.Patch("/", handler.UpdateConversation)
+			r.Delete("/", handler.DeleteConversation)
+		})
 	})
 }

@@ -63,6 +63,7 @@ func (repo *Repository) CreateMessage(ctx context.Context, message *Message) err
 }
 
 // Update conversation Title
+// Update conversation Title
 func (repo *Repository) UpdateConversation(ctx context.Context, conv *Conversation) error {
 	query := `UPDATE conversations
 			  SET title = $1, updated_at = NOW()
@@ -71,7 +72,68 @@ func (repo *Repository) UpdateConversation(ctx context.Context, conv *Conversati
 	ctx, cancel := context.WithTimeout(ctx, queryTimeoutDuration)
 	defer cancel()
 
-	result, err := repo.db.ExecContext(ctx, query, conv.ID, conv.Title)
+	result, err := repo.db.ExecContext(ctx, query, conv.Title, conv.ID)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return apierror.ErrNotFound
+	}
+
+	return nil
+}
+
+func (repo *Repository) GetConversationsByUserID(ctx context.Context, userID string) ([]*Conversation, error) {
+	query := `SELECT id, user_id, title, created_at, updated_at
+			  FROM conversations
+			  WHERE user_id = $1
+			  ORDER BY updated_at DESC`
+
+	ctx, cancel := context.WithTimeout(ctx, queryTimeoutDuration)
+	defer cancel()
+
+	rows, err := repo.db.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var conversations []*Conversation
+	for rows.Next() {
+		conv := &Conversation{}
+		err := rows.Scan(
+			&conv.ID,
+			&conv.UserID,
+			&conv.Title,
+			&conv.CreatedAt,
+			&conv.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		conversations = append(conversations, conv)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return conversations, nil
+}
+
+func (repo *Repository) DeleteConversation(ctx context.Context, id string) error {
+	query := `DELETE FROM conversations WHERE id = $1`
+
+	ctx, cancel := context.WithTimeout(ctx, queryTimeoutDuration)
+	defer cancel()
+
+	result, err := repo.db.ExecContext(ctx, query, id)
 	if err != nil {
 		return err
 	}

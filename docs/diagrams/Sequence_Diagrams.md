@@ -134,7 +134,7 @@ sequenceDiagram
     C->>H: GET /auth/google
     H->>AS: GenerateOAuthState()
     AS-->>H: state (random string)
-    H->>H: Set-Cookie: oauth_state=<state>; HttpOnly; Max-Age=300
+    H->>H: "Set-Cookie: oauth_state=<state>; HttpOnly; Max-Age=300"
     H-->>C: 302 Redirect -> accounts.google.com/o/oauth2/auth?...
 
     C->>G: (User authenticates at Google, grants consent)

@@ -245,11 +245,11 @@ flowchart TD
     B -->|No| C[Return 401]
     C --> End1([🔴 End])
 
-    B -->|Yes| D[Delete Qdrant collection\nuser_{userID}\nremoves all vectors]
+    B -->|Yes| D["Delete Qdrant collection\nuser_{userID}\nremoves all vectors"]
     D --> E{Qdrant delete\nsuccessful?}
     E -->|No - log error| F[Log error, continue]
-    F --> G
-    G -->|Yes| G2[DELETE FROM users WHERE id = userID]
+    E -->|Yes| G2[DELETE FROM users WHERE id = userID]
+    F --> G2
     G2 --> H[PostgreSQL CASCADE deletes documents, sessions, tokens, etc.]
     H --> I[Clear auth cookies (Set-Cookie: Max-Age=0)]
 

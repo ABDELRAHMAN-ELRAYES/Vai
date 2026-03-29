@@ -12,6 +12,7 @@ import (
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/validator"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/apierror"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/httputil"
+	"github.com/go-chi/chi/v5"
 )
 
 type Handler struct {
@@ -129,4 +130,108 @@ func (handler *Handler) StartConversation(w http.ResponseWriter, r *http.Request
 			return
 		}
 	}
+}
+
+// GetConversations godoc
+//
+//	@Summary		Get all user conversations
+//	@Description	Returns a list of all conversations for the authenticated user, ordered by last update time.
+//	@Tags			conversations
+//	@Produce		json
+//	@Success		200		{array}		Conversation			"List of conversations"
+//	@Failure		401		{object}	error					"Unauthorized"
+//	@Failure		500		{object}	error					"Internal server error"
+//	@Security		BearerAuth
+//	@Router			/conversations [get]
+func (handler *Handler) GetConversations(w http.ResponseWriter, r *http.Request) {
+	logger := handler.app.Logger
+	ctx := r.Context()
+	user := ctx.Value(shared.UserCtxKey).(*users.User)
+
+	conversations, err := handler.service.GetConversations(ctx, user.ID)
+	if err != nil {
+		apierror.InternalServerError(logger, w, r, err)
+		return
+	}
+
+	if err := httputil.WriteJSON(w, http.StatusOK, conversations); err != nil {
+		apierror.InternalServerError(logger, w, r, err)
+		return
+	}
+}
+
+// UpdateConversation godoc
+//
+//	@Summary		Update conversation title
+//	@Description	Updates the title of an existing conversation.
+//	@Tags			conversations
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		string					true	"Conversation ID"
+//	@Param			payload	body		UpdateConversationDTO	true	"New title payload"
+//	@Success		204		{string}	string					"No Content"
+//	@Failure		400		{object}	error					"Invalid request body"
+//	@Failure		401		{object}	error					"Unauthorized"
+//	@Failure		404		{object}	error					"Conversation not found"
+//	@Failure		500		{object}	error					"Internal server error"
+//	@Security		BearerAuth
+//	@Router			/conversations/{id} [patch]
+func (handler *Handler) UpdateConversation(w http.ResponseWriter, r *http.Request) {
+	logger := handler.app.Logger
+	id := chi.URLParam(r, "id")
+
+	var updateConversationDto UpdateConversationDTO
+	if err := httputil.ReadJSON(w, r, &updateConversationDto); err != nil {
+		apierror.BadRequest(logger, w, r, err)
+		return
+	}
+
+	if err := validator.Validate.Struct(updateConversationDto); err != nil {
+		apierror.BadRequest(logger, w, r, err)
+		return
+	}
+
+	payload := &UpdateConversationPayload{
+		ConversationID: id,
+		Title:          updateConversationDto.Title,
+	}
+
+	if err := handler.service.UpdateConversation(r.Context(), payload); err != nil {
+		if err == apierror.ErrNotFound {
+			apierror.NotFound(logger, w, r, err)
+			return
+		}
+		apierror.InternalServerError(logger, w, r, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// DeleteConversation godoc
+//
+//	@Summary		Delete a conversation
+//	@Description	Deletes an existing conversation and all its messages.
+//	@Tags			conversations
+//	@Param			id		path		string					true	"Conversation ID"
+//	@Success		204		{string}	string					"No Content"
+//	@Failure		401		{object}	error					"Unauthorized"
+//	@Failure		404		{object}	error					"Conversation not found"
+//	@Failure		500		{object}	error					"Internal server error"
+//	@Security		BearerAuth
+//	@Router			/conversations/{id} [delete]
+func (handler *Handler) DeleteConversation(w http.ResponseWriter, r *http.Request) {
+	logger := handler.app.Logger
+	id := chi.URLParam(r, "id")
+
+	if err := handler.service.DeleteConversation(r.Context(), id); err != nil {
+		if err == apierror.ErrNotFound {
+			apierror.NotFound(logger, w, r, err)
+			return
+		}
+		apierror.InternalServerError(logger, w, r, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

@@ -9,6 +9,7 @@ import (
 type DBTX interface {
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }
 
 // gather some methods execution in the same transaction by calling them in a callback function
