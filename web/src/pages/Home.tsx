@@ -12,7 +12,7 @@ const Home = () => {
         <section
           className={`${messages.length > 0 ? "flex-1" : "h-fit mb-20 mt-60 sm:mt-0"} overflow-hidden w-full flex flex-col min-h-0`}
         >
-          <MessagesList messages={messages} />
+          <MessagesList messages={messages} isStreaming={isLoading}/>
         </section>
 
         <div className="w-full p-3 sm:p-4 shrink-0">

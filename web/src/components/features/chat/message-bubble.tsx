@@ -1,41 +1,45 @@
 import type { Message } from "@/types/modules/chat/message";
 import { memo } from "react";
+import { Streamdown } from "streamdown";
+import "streamdown/styles.css";
 
 interface MessageBubbleProps {
   message: Message;
   isLatest: boolean;
+  isStreaming?: boolean;
 }
-export const MessageBubble = memo(({ message,isLatest }: MessageBubbleProps) => {
-   const isUser = message.role === 'user'
+export const MessageBubble = memo(
+  ({ message, isLatest, isStreaming }: MessageBubbleProps) => {
+    const isUser = message.role === "user";
 
- 
     return (
-    <div
-      className={`flex gap-3 py-4 ${isUser ? "justify-end" : "justify-start"}`}
-      role="article"
-      aria-label={`${message.role === "user" ? "Your" : "Assistant"} message`}
-    >
       <div
-        className={`px-4 py-3 rounded-lg ${
-          isUser
-            ? "bg-sidebar text-gray-900 rounded-br-none max-w-6xl"
-            : ""
-        }`}
+        className={`flex gap-3 py-4 ${isUser ? "justify-end" : "justify-start"}`}
+        role="article"
+        aria-label={`${message.role === "user" ? "Your" : "Assistant"} message`}
       >
-        {message.isLoading && isLatest ? (
-          <div className="relative overflow-hidden px-2 py-1 min-w-[100px]">
-            <span className="text-xl font-black animate-text-spark italic leading-none">
-              Thinking...
-            </span>
-          </div>
-        ) : message.error ? (
-          <p className="text-sm text-red-600">{message.error}</p>
-        ) : (
-          <p className="text-[16px] leading-relaxed whitespace-pre-wrap wrap-break-word">
-            {message.content}
-          </p>
-        )}
+        <div
+          className={`px-4 py-3 rounded-lg ${
+            isUser ? "bg-sidebar text-gray-900 rounded-br-none max-w-6xl" : ""
+          }`}
+        >
+          {message.isLoading && isLatest ? (
+            <div className="relative overflow-hidden px-2 py-1 min-w-[100px]">
+              <span className="text-xl font-black animate-text-spark italic leading-none">
+                Thinking...
+              </span>
+            </div>
+          ) : message.error ? (
+            <p className="text-sm text-red-600">{message.error}</p>
+          ) : isUser ? (
+            <p className="text-[16px] leading-relaxed whitespace-pre-wrap wrap-break-word">
+              {message.content}
+            </p>
+          ) : (
+            <Streamdown isAnimating={isStreaming}>{message.content}</Streamdown>
+          )}
+        </div>
       </div>
-    </div>
-  );
-});
+    );
+  },
+);
