@@ -190,3 +190,18 @@ func (service *Service) GetConversations(ctx context.Context, userID string) ([]
 func (service *Service) DeleteConversation(ctx context.Context, id string) error {
 	return service.repo.DeleteConversation(ctx, id)
 }
+
+func (service *Service) GetConversation(ctx context.Context, id string) (*Conversation, error) {
+	conv, err := service.repo.GetConversationByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	messages, err := service.repo.GetMessagesByConversationID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	conv.Messages = messages
+	return conv, nil
+}

@@ -235,3 +235,36 @@ func (handler *Handler) DeleteConversation(w http.ResponseWriter, r *http.Reques
 
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// GetChat godoc
+//
+//	@Summary		Get a conversation
+//	@Description	Returns a single conversation and its messages.
+//	@Tags			conversations
+//	@Param			id	path		string			true	"Conversation ID"
+//	@Produce		json
+//	@Success		200	{object}	Conversation	"Conversation object"
+//	@Failure		401	{object}	error			"Unauthorized"
+//	@Failure		404	{object}	error			"Conversation not found"
+//	@Failure		500	{object}	error			"Internal server error"
+//	@Security		BearerAuth
+//	@Router			/conversations/{id} [get]
+func (handler *Handler) GetChat(w http.ResponseWriter, r *http.Request) {
+	logger := handler.app.Logger
+	id := chi.URLParam(r, "id")
+
+	conversation, err := handler.service.GetConversation(r.Context(), id)
+	if err != nil {
+		if err == apierror.ErrNotFound {
+			apierror.NotFound(logger, w, r, err)
+			return
+		}
+		apierror.InternalServerError(logger, w, r, err)
+		return
+	}
+
+	if err := httputil.WriteJSON(w, http.StatusOK, conversation); err != nil {
+		apierror.InternalServerError(logger, w, r, err)
+		return
+	}
+}

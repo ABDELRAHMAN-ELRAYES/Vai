@@ -30,6 +30,14 @@ const router = createBrowserRouter([
           </S>
         ),
       },
+      {
+        path: PATHS.CHAT,
+        element: (
+          <S>
+            <Home />
+          </S>
+        ),
+      },
     ],
   },
   {

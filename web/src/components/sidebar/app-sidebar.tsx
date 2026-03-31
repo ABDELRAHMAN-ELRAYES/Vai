@@ -48,7 +48,12 @@ import { InlineEdit } from "./edit-input";
 import { DeleteConversationDialog } from "./delete-conversation-dialog";
 
 
+import { useNavigate } from "react-router-dom";
+import { PATHS } from "@/router/paths";
+
+
 export function AppSidebar() {
+  const navigate = useNavigate();
   const {
     user,
     isAuthenticated,
@@ -156,6 +161,7 @@ export function AppSidebar() {
                       openAuth("sign-in");
                       return;
                     }
+                    navigate(PATHS.HOME);
                   }}
                 >
                   <SquarePen className="h-[18px] w-[18px]" />
@@ -182,6 +188,7 @@ export function AppSidebar() {
                   conversations.map((conversation) => (
                     <SidebarMenuItem key={conversation.id}>
                       <SidebarMenuButton
+                        onClick={() => navigate(PATHS.CHAT.replace(":id", conversation.id))}
                         className={cn(
                           "h-9 rounded-lg px-3 group text-muted-foreground hover:text-foreground transition-all duration-200",
                           editingId === conversation.id &&

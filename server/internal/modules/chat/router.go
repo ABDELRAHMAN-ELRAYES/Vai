@@ -17,6 +17,7 @@ func RegisterRoutes(r chi.Router, handler *Handler) {
 		r.Post("/", handler.StartConversation)
 		r.Get("/", handler.GetConversations)
 		r.Route("/{id}", func(r chi.Router) {
+			r.Get("/", handler.GetChat)
 			r.Patch("/", handler.UpdateConversation)
 			r.Delete("/", handler.DeleteConversation)
 		})

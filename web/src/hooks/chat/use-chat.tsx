@@ -2,13 +2,14 @@ import { chatApi } from "@/api/modules/chat/chat.api";
 import type { StartConversationPayload } from "@/types/modules/chat/dto";
 import type { ChatState } from "@/types/modules/chat/hook";
 import type { Message } from "@/types/modules/chat/message";
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useConversations,
   useRenameConversation,
   useDeleteConversation,
+  useConversation,
 } from "@/api/modules/chat/chatQueries";
 
 const MESSAGE_TEMPLATES = {
@@ -17,15 +18,57 @@ const MESSAGE_TEMPLATES = {
   GENERIC_ERROR: "An unexpected error occurred. Please try again.",
 } as const;
 
-export const useChat = () => {
+export const useChat = (id?: string) => {
   const [state, setState] = useState<ChatState>({
-    chatId: null,
+    chatId: id || null,
     messages: [],
     isLoading: false,
     error: null,
   });
 
   const queryClient = useQueryClient();
+  const {
+    data: conversationData,
+    isLoading: isQueryLoading,
+    isError: isQueryError,
+    error: queryError,
+  } = useConversation(id);
+
+  // Get the chat data according to the entered id
+  useEffect(() => {
+    if (!id) {
+      setState({
+        chatId: null,
+        messages: [],
+        isLoading: false,
+        error: null,
+      });
+      return;
+    }
+
+    if (isQueryError) {
+      toast.error("Failed to load conversation");
+      setState((prev) => ({
+        ...prev,
+        isLoading: false,
+        error: "Failed to load conversation",
+      }));
+      return;
+    }
+
+    if (conversationData) {
+      setState({
+        chatId: conversationData.id,
+        messages: conversationData.messages.map((m) => ({
+          id: m.id,
+          content: m.content,
+          role: m.role as "user" | "ai",
+        })),
+        isLoading: false,
+        error: null,
+      });
+    }
+  }, [id, conversationData, isQueryError]);
 
   // Send Message
   const startConversation = useCallback(async (content: string) => {
@@ -141,6 +184,13 @@ export const useChat = () => {
           error: null,
         };
       });
+
+      // Refetch conversation to sync with server
+      if (id) {
+        queryClient.invalidateQueries({
+          queryKey: ["chat", "conversation", id],
+        });
+      }
     } catch (error) {
       const errorMessage =
         error instanceof Error && error.name === "AbortError"
@@ -188,6 +238,8 @@ export const useChat = () => {
 
   return {
     ...state,
+    isLoading: state.isLoading || isQueryLoading,
+    error: state.error || queryError?.message || null,
     conversations,
     isConversationsLoading,
     startConversation,

@@ -36,3 +36,12 @@ export const useDeleteConversation = () => {
     onError: () => toast.error("Failed to delete conversation"),
   });
 };
+
+export const useConversation = (id?: string) => {
+  return useQuery({
+    queryKey: ["chat", "conversation", id],
+    queryFn: () => chatApi.getConversation(id!),
+    enabled: !!id,
+    staleTime: 1000 * 60 * 5,
+  });
+};

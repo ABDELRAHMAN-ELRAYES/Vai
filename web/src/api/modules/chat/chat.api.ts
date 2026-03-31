@@ -29,4 +29,8 @@ export const chatApi = {
   deleteConversation(id: string) {
     return apiClient.delete(`${ROUTER_PREFIX}/${id}`);
   },
+
+  getConversation(id: string) {
+    return apiClient.get<Conversation>(`${ROUTER_PREFIX}/${id}`);
+  },
 };

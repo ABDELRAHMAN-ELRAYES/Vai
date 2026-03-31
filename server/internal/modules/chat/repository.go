@@ -149,3 +149,68 @@ func (repo *Repository) DeleteConversation(ctx context.Context, id string) error
 
 	return nil
 }
+
+func (repo *Repository) GetConversationByID(ctx context.Context, id string) (*Conversation, error) {
+	query := `SELECT id, user_id, title, created_at, updated_at
+			  FROM conversations
+			  WHERE id = $1`
+
+	ctx, cancel := context.WithTimeout(ctx, queryTimeoutDuration)
+	defer cancel()
+
+	conv := &Conversation{}
+	err := repo.db.QueryRowContext(ctx, query, id).Scan(
+		&conv.ID,
+		&conv.UserID,
+		&conv.Title,
+		&conv.CreatedAt,
+		&conv.UpdatedAt,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, apierror.ErrNotFound
+		}
+		return nil, err
+	}
+
+	return conv, nil
+}
+
+func (repo *Repository) GetMessagesByConversationID(ctx context.Context, conversationID string) ([]Message, error) {
+	query := `SELECT id, conversation_id, content, role, created_at
+			  FROM messages
+			  WHERE conversation_id = $1
+			  ORDER BY created_at ASC`
+
+	ctx, cancel := context.WithTimeout(ctx, queryTimeoutDuration)
+	defer cancel()
+
+	rows, err := repo.db.QueryContext(ctx, query, conversationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var messages []Message
+	for rows.Next() {
+		msg := Message{}
+		err := rows.Scan(
+			&msg.ID,
+			&msg.ConversationID,
+			&msg.Content,
+			&msg.Role,
+			&msg.CreatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		messages = append(messages, msg)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return messages, nil
+}
