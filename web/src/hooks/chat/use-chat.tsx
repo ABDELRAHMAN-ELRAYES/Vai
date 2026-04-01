@@ -1,5 +1,4 @@
 import { chatApi } from "@/api/modules/chat/chat.api";
-import type { StartConversationPayload } from "@/types/modules/chat/dto";
 import type { ChatState } from "@/types/modules/chat/hook";
 import type { Message } from "@/types/modules/chat/message";
 import { useCallback, useState, useEffect } from "react";
@@ -71,17 +70,14 @@ export const useChat = (id?: string) => {
   }, [id, conversationData, isQueryError]);
 
   // Send Message
-  const startConversation = useCallback(async (content: string) => {
-    // Check the user enters a new message
-    const messageContent: string = content.trim();
-    if (!messageContent) {
-      toast.error("You have to enter a message!");
-      return;
-    }
-    // Form the start conversation request body
-    const startConversationPayload: StartConversationPayload = {
-      message: content,
-    };
+  const sendMessage = useCallback(
+    async (content: string) => {
+      // Check the user enters a new message
+      const messageContent: string = content.trim();
+      if (!messageContent) {
+        toast.error("You have to enter a message!");
+        return;
+      }
 
     // Add the user message and default ai message to the current chat messages
     const userMessage: Message = {
@@ -105,9 +101,9 @@ export const useChat = (id?: string) => {
     // Hnadle the response stream using Readable Stream
     try {
       // Send the request to the server
-      const response = await chatApi.startConversation(
-        startConversationPayload,
-      );
+      const response = id
+        ? await chatApi.sendMessage(id, messageContent)
+        : await chatApi.startConversation({ message: messageContent });
 
       // Create ReadableStream reader and locks the stream to it
       if (!response.body) return;
@@ -212,8 +208,10 @@ export const useChat = (id?: string) => {
           error: errorMessage,
         };
       });
-    }
-  }, []);
+      }
+    },
+    [id, queryClient],
+  );
 
   // Rename Conversation
   const renameMutation = useRenameConversation();
@@ -242,7 +240,7 @@ export const useChat = (id?: string) => {
     error: state.error || queryError?.message || null,
     conversations,
     isConversationsLoading,
-    startConversation,
+    sendMessage,
     renameConversation,
     deleteConversation,
     isRenaming: renameMutation.isPending,

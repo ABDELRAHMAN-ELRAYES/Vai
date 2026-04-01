@@ -8,7 +8,7 @@ import { PATHS } from "@/router/paths";
 
 const Home = () => {
   const { id } = useParams<{ id: string }>();
-  const { messages, isLoading, startConversation, chatId } = useChat(id);
+  const { messages, isLoading, sendMessage, chatId } = useChat(id);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -30,7 +30,7 @@ const Home = () => {
 
         <div className="w-full p-3 sm:p-4 shrink-0">
           <ChatInput
-            onSend={startConversation}
+            onSend={sendMessage}
             isLoading={isLoading}
             disabled={false}
           />

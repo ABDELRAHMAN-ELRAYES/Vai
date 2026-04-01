@@ -7,3 +7,7 @@ type StartConversationDTO struct {
 type UpdateConversationDTO struct {
 	Title string `json:"title" validate:"required"`
 }
+
+type SendMessageDTO struct {
+	Message string `json:"message" validate:"required"`
+}

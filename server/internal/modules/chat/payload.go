@@ -1,9 +1,15 @@
 package chat
 
 type StartConversationPayload struct {
-	UserID  string
-	Title   string
-	Message string
+	UserID  string `json:"user_id" validate:"required"`
+	Title   string `json:"title" validate:"required"`
+	Message string `json:"message" validate:"required"`
+}
+
+type SendMessagePayload struct {
+	ConversationID string `json:"conversation_id" validate:"required"`
+	UserID         string `json:"user_id" validate:"required"`
+	Message        string `json:"message" validate:"required"`
 }
 
 type CreateMessagePayload struct {
@@ -17,7 +23,7 @@ type UpdateConversationPayload struct {
 	Title          string
 }
 type ChatPromptData struct {
-	Messages    []string
+	Messages    []Message
 	UserMessage string
 }
 

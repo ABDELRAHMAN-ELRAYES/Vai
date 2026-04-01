@@ -60,7 +60,6 @@ func (handler *Handler) StartConversation(w http.ResponseWriter, r *http.Request
 
 	user := ctx.Value(shared.UserCtxKey).(*users.User)
 	// 4. Form the service payload
-
 	startConversationPayload := &StartConversationPayload{
 		UserID:  user.ID,
 		Title:   "Default",
@@ -266,5 +265,105 @@ func (handler *Handler) GetChat(w http.ResponseWriter, r *http.Request) {
 	if err := httputil.WriteJSON(w, http.StatusOK, conversation); err != nil {
 		apierror.InternalServerError(logger, w, r, err)
 		return
+	}
+}
+// SendMessage godoc
+//
+//	@Summary		Continue conversation
+//	@Description	Adds a new message to an existing conversation, sends it to the LLM, and streams the response back using Server-Sent Events (SSE).
+//	@Tags			conversations
+//	@Accept			json
+//	@Produce		text/event-stream
+//	@Param			id		path		string			true	"Conversation ID"
+//	@Param			payload	body		SendMessageDTO	true	"Message payload"
+//	@Success		200		{string}	string			"SSE stream tokens"
+//	@Failure		400		{object}	error			"Invalid request"
+//	@Failure		401		{object}	error			"Unauthorized"
+//	@Failure		404		{object}	error			"Conversation not found"
+//	@Failure		500		{object}	error			"Internal server error"
+//	@Security		BearerAuth
+//	@Router			/conversations/{id} [post]
+func (handler *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
+	logger := handler.app.Logger
+	id := chi.URLParam(r, "id")
+
+	// 1. Read the request body
+	var sendMessageDTO SendMessageDTO
+	if err := httputil.ReadJSON(w, r, &sendMessageDTO); err != nil {
+		apierror.BadRequest(logger, w, r, err)
+		return
+	}
+
+	// 2. Validate the request body
+	if err := validator.Validate.Struct(sendMessageDTO); err != nil {
+		apierror.BadRequest(logger, w, r, err)
+		return
+	}
+
+	// 2. Get user context
+	ctx := r.Context()
+	user := ctx.Value(shared.UserCtxKey).(*users.User)
+
+	// 3. Form the service payload
+	payload := SendMessagePayload{
+		ConversationID: id,
+		UserID:         user.ID,
+		Message:        sendMessageDTO.Message,
+	}
+
+	tokenStream, errStream, err := handler.service.SendMessage(ctx, payload)
+	if err != nil {
+		switch err {
+		case apierror.ErrNotFound:
+			apierror.NotFound(logger, w, r, err)
+			return
+		case apierror.ErrUnauthorized:
+			apierror.Unauthorized(logger, w, r, err)
+			return
+		default:
+			apierror.InternalServerError(logger, w, r, err)
+			return
+		}
+	}
+
+	// 4. Setup SSE headers and stream the response
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		apierror.InternalServerError(logger, w, r, errors.New("streaming unsupported"))
+		return
+	}
+
+	for {
+		select {
+		case token, ok := <-tokenStream:
+			if !ok {
+				_, _ = w.Write([]byte("data: [DONE]\n\n"))
+				flusher.Flush()
+				return
+			}
+			msgData := map[string]string{
+				"token": token,
+				"type":  "token",
+			}
+			jsonData, _ := json.Marshal(msgData)
+			_, _ = w.Write([]byte(fmt.Sprintf("data: %s\n\n", jsonData)))
+			flusher.Flush()
+
+		case err, ok := <-errStream:
+			if !ok {
+				continue
+			}
+			if err != nil {
+				apierror.InternalServerError(logger, w, r, err)
+				return
+			}
+
+		case <-ctx.Done():
+			return
+		}
 	}
 }

@@ -74,7 +74,7 @@ func (service *Service) StartConversation(ctx context.Context, payload StartConv
 
 	// 4. Render the prompt
 	chatPromptData := &ChatPromptData{
-		Messages:    []string{},
+		Messages:    []Message{},
 		UserMessage: payload.Message,
 	}
 	chatPrompt, err := ai.RenderPrompt(ai.ChatPrompt, chatPromptData)
@@ -204,4 +204,65 @@ func (service *Service) GetConversation(ctx context.Context, id string) (*Conver
 
 	conv.Messages = messages
 	return conv, nil
+}
+func (service *Service) SendMessage(ctx context.Context, payload SendMessagePayload) (<-chan string, <-chan error, error) {
+	// 1. Validate request body
+	if err := validator.Validate.Struct(payload); err != nil {
+		return nil, nil, apierror.ErrBadRequest
+	}
+
+	// 2. Check if the conversation exists
+	conv, err := service.repo.GetConversationByID(ctx, payload.ConversationID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// 3. Check if the conversation belongs to the user
+	if conv.UserID != payload.UserID {
+		return nil, nil, apierror.ErrUnauthorized
+	}
+
+	// 4. Create the user message
+	userMsg := &Message{
+		ConversationID: payload.ConversationID,
+		Content:        payload.Message,
+		Role:           ai.UserRole,
+	}
+	err = service.repo.CreateMessage(ctx, userMsg)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// 4. Fetch previous messages
+	prevMessages, err := service.repo.GetMessagesByConversationID(ctx, payload.ConversationID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// 5. Render the prompt with history (exclude the last user message)
+	history := make([]Message, 0, len(prevMessages))
+	for _, m := range prevMessages {
+		if m.ID == userMsg.ID {
+			continue
+		}
+		history = append(history, m)
+	}
+
+	chatPromptData := &ChatPromptData{
+		Messages:    history,
+		UserMessage: payload.Message,
+	}
+	chatPrompt, err := ai.RenderPrompt(ai.ChatPrompt, chatPromptData)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// 6. Send to AI model and start streaming
+	tokenChan, errChan := service.aiService.Generate(ctx, chatPrompt)
+	replyChan, tokenStream, errStream := service.aiService.CollectTokens(tokenChan, errChan)
+
+	// 7. Save the AI reply 
+	go service.saveReply(context.Background(), payload.ConversationID, replyChan)
+
+	return tokenStream, errStream, nil
 }

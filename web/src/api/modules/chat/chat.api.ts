@@ -33,4 +33,13 @@ export const chatApi = {
   getConversation(id: string) {
     return apiClient.get<Conversation>(`${ROUTER_PREFIX}/${id}`);
   },
+  
+  sendMessage(id: string, message: string) {
+    return apiClient.post<Response>(
+      `${ROUTER_PREFIX}/${id}`,
+      { message },
+      {},
+      true,
+    );
+  },
 };
