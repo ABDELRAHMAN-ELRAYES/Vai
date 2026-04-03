@@ -11,7 +11,7 @@ import (
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/ai"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/users"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/validator"
-	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/apierror"
+	apierror "github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/errors"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/utils"
 	"go.uber.org/zap"
 )

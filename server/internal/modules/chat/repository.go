@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/db"
-	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/apierror"
+	apierror "github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/errors"
 )
 
 // queryTimeoutDuration is used to bound DB calls.

@@ -13,7 +13,7 @@ import (
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/mailer"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/users"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/validator"
-	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/apierror"
+	apierror "github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/errors"
 	"github.com/golang-jwt/jwt/v5"
 )
 

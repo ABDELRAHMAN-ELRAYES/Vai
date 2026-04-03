@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/app"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/auth"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/config"
@@ -38,6 +40,13 @@ func main() {
 	defer func() {
 		_ = logger.Sync()
 	}()
+
+	// Check & Create the file storage directory
+	uploadDir := cfg.Upload.Dir
+	if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
+		logger.Error("Failed to create upload directory: %v", err)
+		return
+	}
 
 	// Connect to DB
 	database, err := db.New(

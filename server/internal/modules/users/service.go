@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/validator"
-	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/apierror"
+	apierror "github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/errors"
 	"github.com/google/uuid"
 )
 

@@ -16,6 +16,7 @@ type Config struct {
 	QdrantDB      QdrantConfig
 	Authenticator AuthenticatorConfig
 	Mail          Mail
+	Upload        UploadConfig
 }
 
 // DB holds database related configuration.
@@ -53,6 +54,9 @@ type Mail struct {
 	FromAddress  string
 	SupportEmail string
 	Expiry       time.Duration
+}
+type UploadConfig struct {
+	Dir string
 }
 
 func Load() Config {
@@ -94,6 +98,9 @@ func Load() Config {
 			FromAddress:  env.GetStringEnv("FROM_ADDRESS", ""),
 			SupportEmail: env.GetStringEnv("MAIL_SUPPORT_EMAIL", ""),
 			Expiry:       73 * time.Hour,
+		},
+		Upload:UploadConfig{
+			Dir:env.GetStringEnv("UPLOAD_DIR","./uploads"),
 		},
 	}
 }

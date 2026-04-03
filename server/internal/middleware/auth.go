@@ -11,7 +11,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/apierror"
+	apierror "github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/errors"
 )
 
 type UserClaims struct {

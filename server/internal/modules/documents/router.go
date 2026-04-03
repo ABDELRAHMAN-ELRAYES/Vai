@@ -1,9 +1,12 @@
 package documents
 
-import "github.com/go-chi/chi/v5"
+import (
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/middleware"
+	"github.com/go-chi/chi/v5"
+)
 
 func RegisterRoutes(r chi.Router, handler *Handler) {
 	r.Route("/documents", func(r chi.Router) {
-		// TODO: Register all documents endpoints
+		r.With(middleware.FileUploadMiddleware(handler.app)).Post("/upload", handler.Upload)
 	})
 }

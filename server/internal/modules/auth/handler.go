@@ -8,7 +8,7 @@ import (
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/auth"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/shared"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/users"
-	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/apierror"
+	apierror "github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/errors"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/httputil"
 	"github.com/go-chi/chi/v5"
 )
