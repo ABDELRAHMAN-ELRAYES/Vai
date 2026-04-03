@@ -130,11 +130,12 @@ sequenceDiagram
     participant AS as AuthService
     participant G as Google OAuth
     participant DB as PostgreSQL
+    participant SMTP as EmailService
 
     C->>H: GET /auth/google
     H->>AS: GenerateOAuthState()
     AS-->>H: state (random string)
-    H->>H: "Set-Cookie: oauth_state=<state>; HttpOnly; Max-Age=300"
+    H->>H: Set-Cookie oauth_state=<state> (HttpOnly, Max-Age=300)
     H-->>C: 302 Redirect -> accounts.google.com/o/oauth2/auth?...
 
     C->>G: (User authenticates at Google, grants consent)
@@ -142,26 +143,34 @@ sequenceDiagram
 
     C->>H: GET /auth/google/callback?code=...&state=...
     H->>H: Read oauth_state cookie, compare to state param
+    
     alt State mismatch (CSRF)
         H-->>C: 400 Bad Request {code: INVALID_STATE}
     end
+    
     H->>AS: OAuthCallback("google", code, state)
     AS->>G: POST /token {code, client_id, client_secret, redirect_uri}
     G-->>AS: {access_token, id_token, refresh_token}
+    
     AS->>AS: ValidateIDToken(id_token) — verify signature, iss, aud, exp
     AS->>AS: Extract claims: email, name, picture, sub (Google user ID)
+    
     AS->>DB: SELECT * FROM oauth_accounts WHERE provider='google' AND provider_user_id=sub
+    
     alt New user
         DB-->>AS: (no rows)
         AS->>DB: INSERT INTO users (email, display_name, avatar_url, is_verified=TRUE)
         AS->>DB: INSERT INTO oauth_accounts (user_id, provider, provider_user_id)
+        AS-)SMTP: Trigger Welcome Email (Async)
     else Existing user
         DB-->>AS: oauth_account record
         AS->>DB: UPDATE users SET avatar_url = ? (refresh from Google)
     end
+    
     AS->>AS: GenerateJWT(userID, 15min)
     AS->>AS: GenerateRefreshToken()
     AS->>DB: INSERT INTO refresh_tokens
+    
     AS-->>H: TokenPair
     H->>H: Set access_token + refresh_token cookies
     H-->>C: 302 Redirect → / (application home)
@@ -177,32 +186,41 @@ sequenceDiagram
     participant MW as JWT Middleware
     participant H as Handler
     participant RP as RAGPipeline
+    participant FS as Filesystem
     participant CH as Chunker
     participant EC as EmbeddingClient
+    participant OL as Ollama
     participant QD as Qdrant
     participant DB as PostgreSQL
-    participant OL as Ollama
 
     C->>MW: POST /documents/upload (multipart file + access_token cookie)
     MW->>MW: Validate JWT → extract userID
     MW->>H: Request with userID in context
-    H->>H: Read file bytes, validate size ≤ 10MB
-    H->>H: Decode bytes as UTF-8 text
-    H->>RP: IngestDocument(userID, docID, source, text)
-    RP->>QD: EnsureCollection("user_<userID>", vectorSize=768)
-    QD-->>RP: ok (created or already exists)
-    RP->>CH: Split(text, size=500, overlap=100)
+    H->>RP: IngestDocument(userID, docID, source, file)
+    
+    RP->>RP: P2.1 Validate File (size ≤ 10MB, MIME type)
+    RP->>FS: P2.2 Decode to UTF-8 & read/write temp file
+    FS-->>RP: UTF-8 text ready
+    
+    RP->>CH: P2.3 Split(text, size=500, overlap=100)
     CH-->>RP: []Chunk (N chunks)
+    
     loop For each chunk
         RP->>EC: Embed(chunk.Text)
-        EC->>OL: POST /api/embeddings {model: "nomic-embed-text:v1.5", prompt: chunk}
+        EC->>OL: P2.4 POST /api/embeddings {model: "nomic-embed-text:v1.5", prompt: chunk}
         OL-->>EC: {embedding: [f32 × 768]}
         EC-->>RP: []float32
-        RP->>QD: Upsert(collection, Point{id, vector, payload{docID, text, index}})
-        QD-->>RP: ok
     end
-    RP->>DB: INSERT INTO documents (id, user_id, source, chunk_count, size_bytes, collection_name)
+    
+    RP->>QD: P2.5 EnsureCollection("user_<userID>", vectorSize=768)
+    QD-->>RP: ok (created or already exists)
+    
+    RP->>QD: P2.6 Upsert(collection, Point{id, vector, payload{docID, text, index}})
+    QD-->>RP: ok
+    
+    RP->>DB: P2.7 INSERT INTO documents (id, user_id, source, chunk_count, size_bytes)
     DB-->>RP: ok
+    
     RP-->>H: IngestResult{documentID, chunkCount, source}
     H-->>C: 201 Created {document_id, chunks, source}
 ```
@@ -220,34 +238,45 @@ sequenceDiagram
     participant RP as RAGPipeline
     participant EC as EmbeddingClient
     participant QD as Qdrant
-    participant DB as PostgreSQL
     participant OL as Ollama
+    participant DB as PostgreSQL
 
-    C->>MW: GET /chat/stream?question=...&top_k=5&session_id=... (access_token cookie)
+    C->>MW: GET /chat/stream?question=...&top_k=5 (access_token cookie)
     MW->>MW: Validate JWT → extract userID
     MW->>H: Request with userID in context
-    H->>CS: GetOrCreateSession(userID, sessionID?, docID?)
+    
+    H->>CS: P3.1 GetOrCreateSession(userID, sessionID?, docID?)
     CS->>DB: SELECT / INSERT chat_sessions
     DB-->>CS: ChatSession
-    CS->>DB: INSERT INTO chat_messages (session_id, role='user', content=question)
+    
+    CS->>DB: P3.2 INSERT INTO chat_messages (session_id, role='user', content=question)
     DB-->>CS: ok
+    
     H->>RP: StreamAnswer(userID, question, topK, docID?, responseWriter)
-    RP->>EC: Embed(question)
+    
+    RP->>EC: P3.3 Embed(question)
     EC->>OL: POST /api/embeddings {model: nomic-embed-text:v1.5, prompt: question}
     OL-->>EC: {embedding: [f32 × 768]}
     EC-->>RP: queryVector
-    RP->>QD: Search(collection, queryVector, topK, filter=docID?)
+    
+    RP->>QD: P3.4 Search(collection, queryVector, topK, filter=docID?)
     QD-->>RP: []SearchResult{text, docID, score}
-    RP->>RP: AssemblePrompt(systemInstruction, chunks, question)
+    
+    RP->>RP: P3.5 AssemblePrompt(systemInstruction, chunks, question)
+    
     H->>H: Set headers: Content-Type: text/event-stream, Cache-Control: no-cache
-    RP->>OL: POST /api/chat {model: qwen3.5:4b, messages, stream: true}
+    
+    RP->>OL: P3.6 POST /api/chat {model: qwen3.5:4b, messages, stream: true}
+    
     loop Streaming tokens
         OL-->>RP: {message: {content: "<token>"}, done: false}
         RP-->>C: data: <token>\n\n
     end
+    
     OL-->>RP: {done: true}
     RP-->>C: data: [DONE]\n\n
-    RP->>DB: INSERT INTO chat_messages (session_id, role='assistant', content=fullResponse)
+    
+    RP->>DB: P3.7 INSERT INTO chat_messages (session_id, role='assistant', content=fullResponse)
     DB-->>RP: ok
     RP->>DB: UPDATE chat_sessions SET updated_at = NOW()
 ```

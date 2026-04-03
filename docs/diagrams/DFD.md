@@ -12,19 +12,36 @@ The system in its environment. Shows only external actors and the top-level proc
 
 ```mermaid
 flowchart TD
-    User(["👤 User\n(Client)"])
-    Google(["🔵 Google OAuth\nProvider"])
-    SMTP(["📧 SMTP Server"])
-    Vai["🖥️ VAI SYSTEM\n(All processing local)"]
+    %% Architecture Boundaries
+    subgraph Clients [Client Layer]
+        User(["User\n(Browser / App)"])
+    end
 
-    User -->|"Document files\nQuestions\nCredentials\nProfile updates"| Vai
-    Vai -->|"Answers (streaming)\nSession history\nAuth tokens (cookie)\nDocument metadata"| User
+    subgraph Core [Core System]
+        Vai["Vai Backend System\n(Local Processing & Orchestration)"]
+    end
 
-    Vai -->|"OAuth code exchange\nID token validation"| Google
-    Google -->|"ID token\nUser profile (email, name, avatar)"| Vai
+    subgraph External [External Services]
+        Google(["Google OAuth Provider"])
+        SMTP(["SMTP Server"])
+    end
 
-    Vai -->|"Verification email\nPassword reset email\nWelcome email"| SMTP
-    SMTP -->|"Delivery confirmation"| Vai
+    %% --- DATA & CONTROL FLOW ---
+    
+    %% Client Interactions
+    User <==>|"Requests: Docs, Queries, Credentials\nResponses: SSE Answers, Tokens, Metadata"| Vai
+    
+    %% External API Interactions
+    Vai <-->|"Req: OAuth Code Exchange\nRes: ID Token & Profile"| Google
+    Vai -.->|"Send: Auth & Welcome Emails\nRecv: Delivery Confirmation"| SMTP
+
+    %% --- THE SIGNATURE PALETTE ---
+    style Core fill:#ffffff,stroke:#333,stroke-width:2px
+    style Clients fill:#e1f5fe,stroke:#01579b,stroke-width:2px,stroke-dasharray: 5 5
+    style External fill:#fff4dd,stroke:#d4a017,stroke-width:2px,stroke-dasharray: 5 5
+    
+    %% Base node styling for clean text contrast
+    classDef default fill:#ffffff,stroke:#333,stroke-width:1px
 ```
 
 ---
@@ -33,46 +50,74 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    User(["👤 User"])
-    Google(["🔵 Google OAuth"])
-    SMTP(["📧 SMTP"])
+    %% User at the very top
+    User([User])
 
-    P1["P1\nAuthentication\n& Identity"]
-    P2["P2\nDocument\nIngestion"]
-    P3["P3\nRAG Query\n& Response"]
-    P4["P4\nEmail\nDispatch"]
+    %% Middle Tier: The Processing Engines (Distributed horizontally)
+    subgraph Engines [Logic Layer]
+        direction LR
+        P1[P1: Auth & Identity]
+        P2[P2: Doc Ingestion]
+        P3[P3: RAG Query]
+        P4[P4: Email Dispatch]
+    end
 
-    DB[("D1\nPostgreSQL\nusers · sessions\ntokens · messages")]
-    QD[("D2\nQdrant\nvectors per user")]
-    OL["D3\nOllama\n(inference)"]
-    FS[("D4\nFilesystem\ntemp uploads")]
+    %% Bottom/Side Tier: Data & AI (Separated to avoid line crossing)
+    subgraph Auth_System [External Auth]
+        Google([Google OAuth])
+    end
 
-    User -->|"email, password\nOR oauth code"| P1
-    P1 -->|"JWT cookie\nuser profile"| User
-    P1 <-->|"read/write\nusers, tokens"| DB
-    P1 <-->|"code exchange\ntoken validation"| Google
-    P1 -->|"token + user info"| P4
+    subgraph Storage [Storage Layer]
+        DB[(D1: PostgreSQL)]
+        FS[(D4: Filesystem)]
+        QD[(D2: Qdrant)]
+    end
 
-    User -->|"document file\n(multipart)"| P2
-    P2 -->|"document_id\nchunk count"| User
-    P2 -->|"raw file bytes"| FS
-    FS -->|"text content"| P2
-    P2 -->|"chunk texts"| OL
-    OL -->|"embedding vectors"| P2
-    P2 -->|"vectors + payload"| QD
-    P2 -->|"document metadata"| DB
+    subgraph Ollama [AI Models]
+        OL_EMB[D3a: Nomic-Embed-Text v1.5]
+        OL_GEN[D3b: Qwen 3.5 4b]
+    end
 
-    User -->|"question\nsession_id?"| P3
-    P3 -->|"SSE token stream"| User
-    P3 -->|"question text"| OL
-    OL -->|"query vector"| P3
-    P3 -->|"vector search"| QD
-    QD -->|"top-K chunks"| P3
-    P3 -->|"prompt + context"| OL
-    OL -->|"generated tokens"| P3
-    P3 -->|"message records"| DB
+    subgraph Comms [Outbound]
+        SMTP([SMTP])
+    end
 
-    P4 -->|"email content"| SMTP
+    %% --- CONNECTIONS (Organized by Process) ---
+
+    %% P1 PATH (Left Side)
+    User --->|"1. Auth Req"| P1
+    P1 <--->|"2. Verify"| Google
+    P1 <--->|"3. Sessions"| DB
+    P1 --->|"4. JWT"| User
+
+    %% P2 PATH (Center-Left)
+    User --->|"5. Upload"| P2
+    P2 --->|"6. Storage"| FS
+    FS --->|"7. Text"| P2
+    P2 --->|"8. Chunking"| OL_EMB
+    OL_EMB --->|"9. Vectors"| P2
+    P2 --->|"10. Upsert"| QD
+    P2 --->|"11. Meta"| DB
+
+    %% P3 PATH (Center-Right)
+    User --->|"12. Query"| P3
+    P3 --->|"13. Vectorize"| OL_EMB
+    OL_EMB --->|"14. Search"| P3
+    P3 <--->|"15. Retrieval"| QD
+    P3 --->|"16. Context"| OL_GEN
+    OL_GEN --->|"17. Tokens"| P3
+    P3 --->|"18. Log"| DB
+    P3 -.->|"19. SSE"| User
+
+    %% P4 PATH (Right Side)
+    P1 -.-> P4
+    P4 ---> SMTP
+
+    %% Visual Layout Fixes
+    style Engines fill:none,stroke:none
+    style Ollama fill:#f9f9f9,stroke:#333
+    style OL_EMB fill:#d1e9ff
+    style OL_GEN fill:#fff4dd
 ```
 
 ---
@@ -81,36 +126,59 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    Start(["📄 Raw File\n(multipart bytes)"])
+    %% Architecture Boundaries
+    subgraph App [Vai Backend Service: Ingestion Pipeline]
+        direction TB
+        Start(["Raw File\n(multipart bytes)"])
+        
+        P2_1{"P2.1: Validate File\n(Size & MIME)"}
+        ErrSize(["❌ 422 Error"])
+        
+        P2_2["P2.2: Decode to UTF-8"]
+        P2_3["P2.3: Chunker\n(Overlapping chunks)"]
+        P2_4["P2.4: Embed Chunks"]
+        P2_5["P2.5: Ensure Qdrant\nCollection Exists"]
+        P2_6["P2.6: Upsert Vectors"]
+        P2_7["P2.7: Insert Metadata"]
+        
+        End(["Response\n(doc_id, chunks)"])
+    end
 
-    P2_1["P2.1\nValidate File\n(size, MIME type)"]
-    P2_2["P2.2\nDecode to\nUTF-8 Text"]
-    P2_3["P2.3\nChunker\nSplit text into\noverlapping chunks"]
-    P2_4["P2.4\nEmbed Each Chunk\nvia Ollama"]
-    P2_5["P2.5\nEnsure Qdrant\nCollection Exists"]
-    P2_6["P2.6\nUpsert Vectors\nto Qdrant"]
-    P2_7["P2.7\nInsert Document\nMetadata to DB"]
-    End(["✅ Response\n(document_id, chunks)"])
+    subgraph AI [Inference: Ollama]
+        OL["/api/embeddings\n(nomic-embed-text:v1.5)"]
+    end
 
-    FS[("Filesystem\ntemp file")]
-    OL["Ollama\n/api/embeddings\nnomic-embed-text:v1.5"]
-    QD[("Qdrant\nuser_userID")]
-    DB[("PostgreSQL\ndocuments table")]
+    subgraph Data [Persistence Layer]
+        FS[("Filesystem\n(Temp)")]
+        QD[("Qdrant\n(user_userID)")]
+        DB[("PostgreSQL\n(documents table)")]
+    end
 
+    %% --- CONTROL FLOW (Go Execution Sequence) ---
     Start --> P2_1
-    P2_1 -->|"valid"| P2_2
-    P2_1 -->|"invalid"| ErrSize["422 Error"]
-    P2_2 --> FS
-    FS --> P2_3
+    P2_1 -->|"Invalid"| ErrSize
+    P2_1 -->|"Valid"| P2_2
+    P2_2 --> P2_3
     P2_3 -->|"[]Chunk{text, index}"| P2_4
-    P2_4 -->|"chunk text"| OL
-    OL -->|"[]float32 (768)"| P2_4
-    P2_4 -->|"chunk vectors"| P2_5
+    P2_4 --> P2_5
     P2_5 --> P2_6
-    P2_6 -->|"points: (id, vector, payload)"| QD
-    QD --> P2_7
-    P2_7 -->|"metadata record"| DB
-    DB --> End
+    P2_6 --> P2_7
+    P2_7 --> End
+
+    %% --- DATA & IO FLOW (Interactions with external systems) ---
+    P2_2 <-->|"Write/Read\nTemp File"| FS
+    P2_4 <-->|"1. chunk texts\n2. [ ] float32 (768)"| OL
+    P2_6 ==>|"Upsert Points\n(id, vector, payload)"| QD
+    P2_7 ==>|"Insert Record\n(metadata)"| DB
+
+    %% --- STYLING ---
+    style App fill:#ffffff,stroke:#333,stroke-width:2px
+    style AI fill:#fff4dd,stroke:#d4a017,stroke-width:2px
+    style Data fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    
+    %% Subtle styling for entry/exit nodes
+    classDef io fill:#f9f9f9,stroke:#666,stroke-width:1px,stroke-dasharray: 5 5
+    class Start,End,ErrSize io
 ```
 
 ---
@@ -119,37 +187,61 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    Start(["❓ User Question\n+ userID (from JWT)\n+ optional session_id\n+ optional document_id"])
+    %% Architecture Boundaries
+    subgraph App [Vai Backend Service: RAG Engine]
+        direction TB
+        Start(["User Question\n(+ userID, optional session/doc IDs)"])
+        
+        P3_1["P3.1: Get or Create\nChat Session"]
+        P3_2["P3.2: Save User\nMessage"]
+        P3_3["P3.3: Embed Question\n(via Embedder)"]
+        P3_4["P3.4: Vector Search\n(Similarity Match)"]
+        P3_5["P3.5: Assemble Context\nPrompt"]
+        P3_6["P3.6: Stream LLM\nResponse"]
+        P3_7["P3.7: Save Assistant\nMessage"]
+        
+        End(["SSE Stream Output\ndata: <token> ... data: [DONE]"])
+    end
 
-    P3_1["P3.1\nGet or Create\nChat Session"]
-    P3_2["P3.2\nSave User\nMessage"]
-    P3_3["P3.3\nEmbed Question\nvia Ollama"]
-    P3_4["P3.4\nVector Search\nin Qdrant"]
-    P3_5["P3.5\nAssemble\nContext Prompt"]
-    P3_6["P3.6\nStream LLM\nResponse"]
-    P3_7["P3.7\nSave Assistant\nMessage"]
-    End(["📡 SSE Stream\ndata: <token>\ndata: [DONE]"])
+    subgraph AI [Inference: Ollama]
+        OL_E["/api/embeddings\n(nomic-embed-text)"]
+        OL_C["/api/chat (stream)\n(qwen3.5:4b)"]
+    end
 
-    OL_E["Ollama\n/api/embeddings"]
-    OL_C["Ollama\n/api/chat (stream)\nqwen3.5:4b"]
-    QD[("Qdrant\nCosine Search")]
-    DB[("PostgreSQL\nchat_sessions\nchat_messages")]
+    subgraph Data [Persistence Layer]
+        DB[("PostgreSQL\n(chat_sessions & messages)")]
+        QD[("Qdrant\n(Cosine Search)")]
+    end
 
+    %% --- CONTROL FLOW (Go Execution Sequence) ---
     Start --> P3_1
-    P3_1 <-->|"read/write session"| DB
     P3_1 --> P3_2
-    P3_2 -->|"role=user, content=question"| DB
     P3_2 --> P3_3
-    P3_3 -->|"question text"| OL_E
-    OL_E -->|"[]float32 (768)"| P3_4
-    P3_4 -->|"vector + filter"| QD
-    QD -->|"top-K {text, score, docID}"| P3_5
-    P3_5 -->|"system prompt + context + question"| P3_6
-    P3_6 -->|"streaming prompt"| OL_C
-    OL_C -->|"tokens"| P3_6
-    P3_6 --> End
-    P3_6 -->|"assembled response"| P3_7
-    P3_7 -->|"role=assistant, content=answer"| DB
+    P3_3 --> P3_4
+    P3_4 --> P3_5
+    P3_5 --> P3_6
+    P3_6 -->|"Streams tokens to client"| End
+    P3_6 -->|"On stream completion"| P3_7
+
+    %% --- DATA & IO FLOW (Interactions with external systems) ---
+    P3_1 <-->|"Read/Write Session"| DB
+    P3_2 ==>|"Insert Message\n(role=user)"| DB
+    
+    P3_3 <-->|"1. Question text\n2. []float32 (768)"| OL_E
+    P3_4 <-->|"Vector + Filter\nReturns Top-K {text, score, docID}"| QD
+    
+    P3_6 <-->|"1. System prompt + context + question\n2. Yields Tokens"| OL_C
+    
+    P3_7 ==>|"Insert Message\n(role=assistant)"| DB
+
+    %% --- STYLING ---
+    style App fill:#ffffff,stroke:#333,stroke-width:2px
+    style AI fill:#fff4dd,stroke:#d4a017,stroke-width:2px
+    style Data fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    
+    %% Subtle styling for entry/exit nodes
+    classDef io fill:#f9f9f9,stroke:#666,stroke-width:1px,stroke-dasharray: 5 5
+    class Start,End io
 ```
 
 ---

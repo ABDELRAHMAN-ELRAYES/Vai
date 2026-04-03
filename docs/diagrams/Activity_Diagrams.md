@@ -131,37 +131,109 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    Start([🟢 Start]) --> A[POST /documents/upload\nmultipart file]
-    A --> B{JWT valid?}
-    B -->|No| C[Return 401 Unauthorized]
-    C --> End1([🔴 End])
+    %% --- Architectural Boundaries ---
+    subgraph Middleware [Gatekeeper Layer]
+        direction TB
+        B{"JWT valid?"}
+        D{"Email verified?"}
+    end
 
-    B -->|Yes| D{Email verified?}
-    D -->|No| E[Return 403\nEmail not verified]
-    E --> End2([🔴 End])
+    subgraph App [Vai Backend Logic]
+        direction TB
+        Start([Start Request])
+        A["POST /documents/upload<br>(multipart file)"]
+        
+        %% Validations
+        F{"File size<br>≤ 10MB?"}
+        H{"Valid MIME<br>type?"}
+        J["Decode bytes<br>as UTF-8 text"]
+        
+        %% Processing Loop
+        M["Chunker.Split text<br>size=500, overlap=100"]
+        N["For each chunk..."]
+        Q{"More chunks?"}
+        
+        %% Returns
+        C["Return 401<br>Unauthorized"]
+        E["Return 403<br>Email not verified"]
+        G["Return 413<br>File too large"]
+        I["Return 422<br>Unsupported file type"]
+        S["Return 201 Created<br>(docID, chunks, source)"]
+        
+        End([End Request])
+    end
 
-    D -->|Yes| F{File size\n≤ 10MB?}
-    F -->|No| G[Return 413\nFile too large]
-    G --> End3([🔴 End])
+    subgraph Data [Persistence Layer]
+        direction TB
+        K{"Qdrant collection<br>exists for user?"}
+        L["Create collection<br>vectorSize=768"]
+        P["Qdrant.Upsert point<br>(vector + payload)"]
+        R["INSERT documents<br>metadata to PostgreSQL"]
+    end
 
-    F -->|Yes| H{Valid MIME\ntype?}
-    H -->|No| I[Return 422\nUnsupported file type]
-    I --> End4([🔴 End])
+    subgraph AI [Inference Layer]
+        direction TB
+        O["Ollama.Embed chunk<br>(nomic-embed-text:v1.5)"]
+    end
 
-    H -->|Yes| J[Decode bytes as UTF-8 text]
-    J --> K{Qdrant collection\nexists for user?}
-    K -->|No| L[Create collection\nvectorSize=768\ndistance=Cosine]
+    %% --- CONTROL FLOW ---
+    
+    Start --> A
+    A --> B
+    
+    %% Auth Check
+    B -->|No| C
+    C --> End
+    B -->|Yes| D
+    
+    %% Email Check
+    D -->|No| E
+    E --> End
+    D -->|Yes| F
+    
+    %% Size Check
+    F -->|No| G
+    G --> End
+    F -->|Yes| H
+    
+    %% MIME Check
+    H -->|No| I
+    I --> End
+    H -->|Yes| J
+    
+    %% Qdrant Init
+    J --> K
+    K -->|No| L
+    L --> M
     K -->|Yes| M
-
-    L --> M[Chunker.Split text\nsize=500 · overlap=100]
-    M --> N[For each chunk...]
-    N --> O[Ollama.Embed chunk\nnomic-embed-text:v1.5\n→ float32 x 768]
-    O --> P[Qdrant.Upsert point\nvector + payload\nid=hash of docID+index]
-    P --> Q{More chunks?}
+    
+    %% Chunking & Embedding Loop
+    M --> N
+    N --> O
+    O --> P
+    P --> Q
     Q -->|Yes| N
-    Q -->|No| R[INSERT documents\nmetadata to PostgreSQL]
-    R --> S[Return 201 Created\ndocument_id · chunks · source]
-    S --> End5([🟢 End])
+    
+    %% Final DB Insert
+    Q -->|No| R
+    R --> S
+    S --> End
+
+    %% --- STYLING ---
+    style Middleware fill:#f9f9f9,stroke:#666,stroke-width:2px,stroke-dasharray: 5 5
+    style App fill:#ffffff,stroke:#333,stroke-width:2px
+    style Data fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    style AI fill:#fff4dd,stroke:#d4a017,stroke-width:2px
+
+    %% Node-specific semantic styling
+    classDef terminal fill:#333,stroke:#333,stroke-width:2px,color:#fff
+    class Start,End terminal
+    
+    classDef error fill:#ffebee,stroke:#c62828,stroke-width:1px,color:#b71c1c
+    class C,E,G,I error
+    
+    classDef success fill:#e8f5e9,stroke:#2e7d32,stroke-width:1px,color:#1b5e20
+    class S success
 ```
 
 ---

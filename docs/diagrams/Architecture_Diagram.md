@@ -9,71 +9,104 @@
 ## System Architecture Overview
 
 ```mermaid
-graph TB
-    subgraph Clients["External Clients"]
-        Browser["🌐 Browser"]
-        Mobile["📱 Mobile App"]
-        CLI["⌨️ curl / CLI"]
-        Integrations["🔌 3rd-party Integration"]
+graph LR
+    %% Column 1: Client
+    User([User / Browser])
+
+    %% Column 2: Gateway
+    subgraph Middleware [Gatekeeper Layer]
+        direction TB
+        CORS[CORS Policy]
+        Auth[JWT Validator]
+        Limit[Rate Limiter]
     end
 
-    subgraph VaiBackend["Vai Backend  (Go :8080)"]
-        subgraph Middleware["Middleware Layer"]
-            JWTAuth["JWTAuth"]
-            CORS["CORS"]
-            RateLimit["RateLimit"]
-            Logger["Logger"]
+    %% Column 3: Go Backend logic
+    subgraph App [Vai Backend Service]
+        direction TB
+        subgraph Handlers [API Endpoints]
+            H_Auth["/auth"]
+            H_Chat["/chat (SSE)"]
+            H_Docs["/documents"]
         end
 
-        subgraph Handlers["HTTP Handlers"]
-            AuthH["/auth"]
-            UsersH["/users"]
-            DocsH["/documents"]
-            ChatH["/chat"]
-            SearchH["/search"]
+        subgraph Logic [Business Logic Services]
+            S_Auth[AuthService]
+            S_Chat[ChatService]
+            S_Email[EmailService]
         end
 
-        subgraph Services["Service Layer"]
-            AuthSvc["AuthService"]
-            UserSvc["UserService"]
-            ChatSvc["ChatService"]
-            EmailSvc["EmailService"]
+        subgraph P2_Ingestion [P2: Ingestion Pipeline]
+            P2_1[P2.1: Validate]
+            P2_2[P2.2: Decode]
+            P2_3[P2.3: Chunk]
+            P2_4[P2.4: Embedder]
         end
 
-        subgraph RAG["RAG Pipeline"]
-            Chunker["Chunker"]
-            EmbClient["Embedding Client"]
-            Pipeline["RAGPipeline"]
+        subgraph P3_RAG [P3: RAG Engine]
+            Pipe[Query Pipeline]
         end
     end
 
-    subgraph Storage["Storage Layer"]
-        PG[("PostgreSQL :5432\nusers · sessions\ntokens · chat")]
-        QD[("Qdrant :6333\nvector embeddings\nper-user collections")]
+    %% Column 4: Infrastructure & AI
+    subgraph AI [Inference: Ollama]
+        direction TB
+        M_Emb["D3a: Nomic-Embed-Text v1.5"]
+        M_Gen["D3b: Qwen 3.5 4b"]
     end
 
-    subgraph AIInference["AI Inference (Local)"]
-        Ollama["Ollama :11434"]
-        EmbModel["nomic-embed-text:v1.5\n(embeddings)"]
-        LLMModel["qwen3.5:4b\n(generation)"]
+    subgraph Data [Persistence Layer]
+        direction TB
+        PG[("D1: PostgreSQL")]
+        QD[("D2: Qdrant")]
+        FS[("D4: Filesystem")]
     end
 
-    subgraph External["External Services"]
-        Google["Google OAuth 2.0"]
-        SMTP["SMTP Server\n(email delivery)"]
+    subgraph External [External Services]
+        direction TB
+        Google([Google OAuth 2.0])
+        SMTP([SMTP Server])
     end
 
-    Clients -->|HTTPS REST + SSE| VaiBackend
-    Handlers --> Services
-    Handlers --> RAG
-    Services --> PG
-    RAG --> QD
-    RAG --> Ollama
-    Ollama --- EmbModel
-    Ollama --- LLMModel
-    AuthSvc --> PG
-    AuthSvc --> Google
-    EmailSvc --> SMTP
+    %% --- THE UPDATED FLOW ---
+
+    %% Entry
+    User --> Middleware
+    Middleware --> Handlers
+
+    %% Auth Flow
+    H_Auth --> S_Auth
+    S_Auth --> PG
+    S_Auth -.-> Google
+
+    %% Document Ingestion Flow (P2 Logic)
+    H_Docs --> P2_1
+    P2_1 --> P2_2
+    P2_2 <--> FS
+    P2_2 --> P2_3
+    P2_3 --> P2_4
+    P2_4 <--> M_Emb
+    P2_4 --> QD
+    P2_4 --> PG
+
+    %% Chat/RAG Flow (P3 Logic)
+    H_Chat --> S_Chat
+    S_Chat --> Pipe
+    Pipe <--> M_Emb
+    Pipe <--> QD
+    Pipe <--> M_Gen
+    Pipe --> PG
+    
+    %% Email Trigger
+    S_Chat --> S_Email
+    S_Email -.-> SMTP
+
+    %% Final Styling applied from the second diagram
+    style Middleware fill:#f9f9f9,stroke-dasharray: 5 5
+    style App fill:#ffffff,stroke:#333
+    style AI fill:#fff4dd,stroke:#d4a017
+    style Data fill:#e1f5fe,stroke:#01579b
+    style External fill:#ffffff,stroke:#333
 ```
 
 ---
