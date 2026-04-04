@@ -20,9 +20,11 @@ async function request<T>(
     });
   }
 
+  const isFormData = body instanceof FormData;
+
   // Build headers
   const headers = new Headers({
-    "Content-Type": "application/json",
+    ...(!isFormData && { "Content-Type": "application/json" }),
     ...fetchInit.headers,
   });
 
@@ -35,7 +37,11 @@ async function request<T>(
     headers,
     credentials: "include",
     signal: controller.signal,
-    ...(body !== undefined && { body: JSON.stringify(body) }),
+    body: isFormData
+      ? (body as FormData)
+      : body !== undefined
+        ? JSON.stringify(body)
+        : undefined,
   };
 
   const t0 = Date.now();

@@ -1,4 +1,4 @@
-package sharedDocs
+package sharedDocuments
 
 import (
 	"context"

@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/app"
-	sharedDocs "github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/shared/modules/documents"
+	sharedDocuments "github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/shared/modules/documents"
 	apierror "github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/errors"
 	"github.com/google/uuid"
 )
@@ -28,7 +28,7 @@ func FileUploadMiddleware(app *app.Application) func(http.Handler) http.Handler 
 				return
 			}
 
-			var result *sharedDocs.UploadedFile
+			var result *sharedDocuments.UploadedFile
 			for {
 				part, err := reader.NextPart()
 				if err == io.EOF {
@@ -59,13 +59,13 @@ func FileUploadMiddleware(app *app.Application) func(http.Handler) http.Handler 
 			}
 
 			// Inject file into context and pass to next handler
-			next.ServeHTTP(w, sharedDocs.SetUploadedFile(r, result))
+			next.ServeHTTP(w, sharedDocuments.SetUploadedFile(r, result))
 		})
 	}
 }
 
-// Save the file parts to its related file in a specific path
-func saveFile(part *multipart.Part, uploadDir string) (*sharedDocs.UploadedFile, error) {
+// Save the file part in specific path
+func saveFile(part *multipart.Part, uploadDir string) (*sharedDocuments.UploadedFile, error) {
 	if part.FileName() == "" {
 		return nil, apierror.ErrInvalidFilePart
 	}
@@ -88,7 +88,7 @@ func saveFile(part *multipart.Part, uploadDir string) (*sharedDocs.UploadedFile,
 		return nil, apierror.ErrFailedToSaveFile
 	}
 
-	return &sharedDocs.UploadedFile{
+	return &sharedDocuments.UploadedFile{
 		FileName: fileName,
 		Size:     size,
 	}, nil

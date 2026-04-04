@@ -1,4 +1,4 @@
-package sharedDocs
+package sharedDocuments
 
 type UploadedFile struct {
 	FileName string
