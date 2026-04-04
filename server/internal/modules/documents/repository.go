@@ -2,15 +2,19 @@ package documents
 
 import (
 	"context"
-	"database/sql"
+	"time"
 
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/db"
 	"github.com/qdrant/go-client/qdrant"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
+// queryTimeoutDuration is used to bound DB calls.
+var queryTimeoutDuration = 5 * time.Second
+
 type Repository struct {
-	db     *sql.DB
+	db     db.DBTX
 	qdrant *QdrantClient
 }
 type QdrantClient struct {
@@ -18,7 +22,7 @@ type QdrantClient struct {
 	collectionName string
 }
 
-func NewRepository(db *sql.DB, qdrantClient *QdrantClient) *Repository {
+func NewRepository(db db.DBTX, qdrantClient *QdrantClient) *Repository {
 
 	return &Repository{
 		db:     db,
@@ -49,4 +53,30 @@ func (repo *Repository) InitCollection() error {
 	})
 
 	return err
+}
+
+func (repo *Repository) Create(ctx context.Context, doc *Document) error {
+	query := `
+		INSERT INTO documents (owner_id, name, original_name, size, mime_type)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, status, created_at, updated_at
+	`
+
+	ctx, cancel := context.WithTimeout(ctx, queryTimeoutDuration)
+	defer cancel()
+
+	return repo.db.QueryRowContext(
+		ctx,
+		query,
+		doc.OwnerID,
+		doc.Name,
+		doc.OriginalName,
+		doc.Size,
+		doc.MimeType,
+	).Scan(
+		&doc.ID,
+		&doc.Status,
+		&doc.CreatedAt,
+		&doc.UpdatedAt,
+	)
 }

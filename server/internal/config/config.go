@@ -56,7 +56,8 @@ type Mail struct {
 	Expiry       time.Duration
 }
 type UploadConfig struct {
-	Dir string
+	Dir       string
+	ChunksDir string
 }
 
 func Load() Config {
@@ -99,8 +100,9 @@ func Load() Config {
 			SupportEmail: env.GetStringEnv("MAIL_SUPPORT_EMAIL", ""),
 			Expiry:       73 * time.Hour,
 		},
-		Upload:UploadConfig{
-			Dir:env.GetStringEnv("UPLOAD_DIR","./uploads"),
+		Upload: UploadConfig{
+			Dir:       env.GetStringEnv("UPLOAD_DIR", "./uploads/raw"),
+			ChunksDir: env.GetStringEnv("UPLOAD_CHUNKS_DIR", "./uploads/chunks"),
 		},
 	}
 }

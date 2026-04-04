@@ -47,10 +47,8 @@ import { formatDate } from "@/utils/format-date";
 import { InlineEdit } from "./edit-input";
 import { DeleteConversationDialog } from "./delete-conversation-dialog";
 
-
 import { useNavigate } from "react-router-dom";
 import { PATHS } from "@/router/paths";
-
 
 export function AppSidebar() {
   const navigate = useNavigate();
@@ -115,15 +113,19 @@ export function AppSidebar() {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" className="px-0">
-              <div className="relative flex w-8 h-12 items-center justify-center overflow-hidden rounded-lg group-data-[collapsible=icon]:rounded-md transition-all duration-300 ease-out">
+            <SidebarMenuButton
+              size="lg"
+              className="px-0 group-data-[collapsible=icon]:justify-center"
+              tooltip={"Hey, I'm Vai :)"}
+            >
+              <div className="relative flex w-8 h-12 items-center justify-center overflow-hidden rounded-lg group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:size-10 transition-all duration-300 ease-out">
                 <img
                   src="/images/logo/logo.png"
                   alt="Vai"
                   className="h-full w-full object-contain"
                 />
               </div>
-              <div className="grid flex-1 text-left text-sm leading-tight">
+              <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
                 <span className="truncate font-semibold">Vai</span>
                 <span className="truncate text-xs text-muted-foreground">
                   Pro plan
@@ -188,7 +190,9 @@ export function AppSidebar() {
                   conversations.map((conversation) => (
                     <SidebarMenuItem key={conversation.id}>
                       <SidebarMenuButton
-                        onClick={() => navigate(PATHS.CHAT.replace(":id", conversation.id))}
+                        onClick={() =>
+                          navigate(PATHS.CHAT.replace(":id", conversation.id))
+                        }
                         className={cn(
                           "h-9 rounded-lg px-3 group text-muted-foreground hover:text-foreground transition-all duration-200",
                           editingId === conversation.id &&
@@ -225,9 +229,7 @@ export function AppSidebar() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent side="right" align="start">
                           <DropdownMenuItem
-                            onClick={() =>
-                              handleRename(conversation.id)
-                            }
+                            onClick={() => handleRename(conversation.id)}
                           >
                             <PencilSimple className="mr-2 h-4 w-4" />
                             <span>Rename</span>
@@ -235,7 +237,12 @@ export function AppSidebar() {
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                            onClick={() => handleDeleteClick(conversation.id, conversation.title)}
+                            onClick={() =>
+                              handleDeleteClick(
+                                conversation.id,
+                                conversation.title,
+                              )
+                            }
                           >
                             <Trash className="mr-2 h-4 w-4" />
                             <span>Delete</span>

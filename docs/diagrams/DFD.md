@@ -1,7 +1,7 @@
 # Data Flow Diagram (DFD)
 ## Vai — How Data Moves Through the System
 
-**Version:** 1.0  
+**Version:** 1.1  
 **Date:** June 2025
 
 ---
@@ -9,7 +9,6 @@
 ## DFD Level 0 — Context Diagram
 
 The system in its environment. Shows only external actors and the top-level process.
-
 ```mermaid
 flowchart TD
     %% Architecture Boundaries
@@ -40,20 +39,18 @@ flowchart TD
     style Clients fill:#e1f5fe,stroke:#01579b,stroke-width:2px,stroke-dasharray: 5 5
     style External fill:#fff4dd,stroke:#d4a017,stroke-width:2px,stroke-dasharray: 5 5
     
-    %% Base node styling for clean text contrast
     classDef default fill:#ffffff,stroke:#333,stroke-width:1px
 ```
 
 ---
 
 ## DFD Level 1 — Main Processes
-
 ```mermaid
 flowchart TD
     %% User at the very top
     User([User])
 
-    %% Middle Tier: The Processing Engines (Distributed horizontally)
+    %% Middle Tier: The Processing Engines
     subgraph Engines [Logic Layer]
         direction LR
         P1[P1: Auth & Identity]
@@ -62,14 +59,14 @@ flowchart TD
         P4[P4: Email Dispatch]
     end
 
-    %% Bottom/Side Tier: Data & AI (Separated to avoid line crossing)
     subgraph Auth_System [External Auth]
         Google([Google OAuth])
     end
 
     subgraph Storage [Storage Layer]
         DB[(D1: PostgreSQL)]
-        FS[(D4: Filesystem)]
+        FS_RAW[(D4a: Filesystem\nraw/)]
+        FS_TMP[(D4b: Filesystem\nchunks/)]
         QD[(D2: Qdrant)]
     end
 
@@ -82,66 +79,84 @@ flowchart TD
         SMTP([SMTP])
     end
 
-    %% --- CONNECTIONS (Organized by Process) ---
+    subgraph Cleanup [Background]
+        BG[Cleanup Worker\n24h draft expiry]
+    end
 
-    %% P1 PATH (Left Side)
+    %% P1 PATH
     User --->|"1. Auth Req"| P1
     P1 <--->|"2. Verify"| Google
     P1 <--->|"3. Sessions"| DB
     P1 --->|"4. JWT"| User
 
-    %% P2 PATH (Center-Left)
+    %% P2 PATH — Upload only: validate, decode, chunk, save drafts
     User --->|"5. Upload"| P2
-    P2 --->|"6. Storage"| FS
-    FS --->|"7. Text"| P2
-    P2 --->|"8. Chunking"| OL_EMB
-    OL_EMB --->|"9. Vectors"| P2
-    P2 --->|"10. Upsert"| QD
-    P2 --->|"11. Meta"| DB
+    P2 ==>|"6. Write raw file"| FS_RAW
+    P2 ==>|"7. Write chunks"| FS_TMP
+    P2 ==>|"8. INSERT (status: draft)"| DB
+    P2 --->|"9. 202 Accepted\n(docID, status: draft)"| User
 
-    %% P3 PATH (Center-Right)
-    User --->|"12. Query"| P3
-    P3 --->|"13. Vectorize"| OL_EMB
-    OL_EMB --->|"14. Search"| P3
-    P3 <--->|"15. Retrieval"| QD
+    %% P3 PATH — Message send: deferred embed + RAG
+    User --->|"10. Query + docID"| P3
+    P3 <-->|"11. Load chunks\n(if status=draft)"| FS_TMP
+    P3 <-->|"12. Embed chunks\n+ question"| OL_EMB
+    OL_EMB --->|"13. []float32 (768)"| P3
+    P3 <-->|"14. Upsert vectors\n(if status=draft)"| QD
+    P3 <-->|"15. Vector search"| QD
     P3 --->|"16. Context"| OL_GEN
     OL_GEN --->|"17. Tokens"| P3
-    P3 --->|"18. Log"| DB
+    P3 ==>|"18. UPDATE status: ready\n+ Log messages"| DB
     P3 -.->|"19. SSE"| User
 
-    %% P4 PATH (Right Side)
+    %% P4 PATH
     P1 -.-> P4
     P4 ---> SMTP
 
-    %% Visual Layout Fixes
+    %% Cleanup PATH
+    BG -.->|"DELETE drafts\nolder than 24h"| FS_RAW
+    BG -.->|"DELETE chunks"| FS_TMP
+    BG -.->|"DELETE WHERE\nstatus=draft AND age > 24h"| DB
+
     style Engines fill:none,stroke:none
     style Ollama fill:#f9f9f9,stroke:#333
     style OL_EMB fill:#d1e9ff
     style OL_GEN fill:#fff4dd
+    style Cleanup fill:#fff9c4,stroke:#f9a825,stroke-width:2px,stroke-dasharray: 4 4
 ```
 
 ---
 
-## DFD Level 2 — Document Ingestion (P2 Expanded)
-
+## DFD Level 2 — Document Ingestion & Message Send (P2 Expanded)
 ```mermaid
 flowchart TD
-    %% Architecture Boundaries
     subgraph App [Vai Backend Service: Ingestion Pipeline]
         direction TB
         Start(["Raw File\n(multipart bytes)"])
-        
+
         P2_1{"P2.1: Validate File\n(Size & MIME)"}
         ErrSize(["❌ 422 Error"])
-        
+
         P2_2["P2.2: Decode to UTF-8"]
         P2_3["P2.3: Chunker\n(Overlapping chunks)"]
-        P2_4["P2.4: Embed Chunks"]
-        P2_5["P2.5: Ensure Qdrant\nCollection Exists"]
-        P2_6["P2.6: Upsert Vectors"]
-        P2_7["P2.7: Insert Metadata"]
-        
-        End(["Response\n(doc_id, chunks)"])
+        P2_4["P2.4: Save chunks\nto temp storage"]
+        P2_5["P2.5: Insert metadata\n(status: draft)"]
+
+        End(["Response\n202 Accepted\n(doc_id, status: draft)"])
+    end
+
+    subgraph Deferred [Message Send Phase — Deferred]
+        direction TB
+        D1["Load chunks\nfrom temp storage"]
+        D2["Embed chunks\n(nomic-embed-text:v1.5)"]
+        D3["Ensure Qdrant\nCollection Exists"]
+        D4["Upsert Vectors"]
+        D5["UPDATE status → ready"]
+        D6(["Run RAG Pipeline"])
+    end
+
+    subgraph Background [Background Cleanup Job]
+        direction TB
+        BG["Periodic scan\nDELETE drafts older than 24h"]
     end
 
     subgraph AI [Inference: Ollama]
@@ -149,34 +164,50 @@ flowchart TD
     end
 
     subgraph Data [Persistence Layer]
-        FS[("Filesystem\n(Temp)")]
+        FS_RAW[("Filesystem\n(raw/)")]
+        FS_TMP[("Filesystem\n(chunks/)")]
         QD[("Qdrant\n(user_userID)")]
         DB[("PostgreSQL\n(documents table)")]
     end
 
-    %% --- CONTROL FLOW (Go Execution Sequence) ---
+    %% Upload phase flow
     Start --> P2_1
     P2_1 -->|"Invalid"| ErrSize
     P2_1 -->|"Valid"| P2_2
     P2_2 --> P2_3
     P2_3 -->|"[]Chunk{text, index}"| P2_4
     P2_4 --> P2_5
-    P2_5 --> P2_6
-    P2_6 --> P2_7
-    P2_7 --> End
+    P2_5 --> End
 
-    %% --- DATA & IO FLOW (Interactions with external systems) ---
-    P2_2 <-->|"Write/Read\nTemp File"| FS
-    P2_4 <-->|"1. chunk texts\n2. [ ] float32 (768)"| OL
-    P2_6 ==>|"Upsert Points\n(id, vector, payload)"| QD
-    P2_7 ==>|"Insert Record\n(metadata)"| DB
+    %% Deferred phase flow
+    D1 --> D2
+    D2 --> D3
+    D3 --> D4
+    D4 --> D5
+    D5 --> D6
 
-    %% --- STYLING ---
+    %% IO interactions — upload phase
+    P2_2 ==>|"Write raw file"| FS_RAW
+    P2_4 ==>|"Write chunks"| FS_TMP
+    P2_5 ==>|"INSERT (status: draft)"| DB
+
+    %% IO interactions — deferred phase
+    D1 <-->|"Read chunks"| FS_TMP
+    D2 <-->|"chunk texts\n[]float32 (768)"| OL
+    D4 ==>|"Upsert Points\n(id, vector, payload)"| QD
+    D5 ==>|"UPDATE status: ready"| DB
+
+    %% Cleanup
+    BG -.->|"DELETE raw + chunks\nDELETE DB record"| FS_RAW
+    BG -.->|"DELETE"| FS_TMP
+    BG -.->|"DELETE WHERE\nstatus=draft AND age > 24h"| DB
+
     style App fill:#ffffff,stroke:#333,stroke-width:2px
+    style Deferred fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px,stroke-dasharray: 5 5
+    style Background fill:#fff9c4,stroke:#f9a825,stroke-width:2px,stroke-dasharray: 4 4
     style AI fill:#fff4dd,stroke:#d4a017,stroke-width:2px
     style Data fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    
-    %% Subtle styling for entry/exit nodes
+
     classDef io fill:#f9f9f9,stroke:#666,stroke-width:1px,stroke-dasharray: 5 5
     class Start,End,ErrSize io
 ```
@@ -184,14 +215,18 @@ flowchart TD
 ---
 
 ## DFD Level 2 — RAG Query (P3 Expanded)
-
 ```mermaid
 flowchart TD
-    %% Architecture Boundaries
     subgraph App [Vai Backend Service: RAG Engine]
         direction TB
-        Start(["User Question\n(+ userID, optional session/doc IDs)"])
-        
+        Start(["User Question\n(+ userID, docID, optional sessionID)"])
+
+        P3_0{"P3.0: Document\nStatus Check"}
+        P3_0A["P3.0A: Load chunks\nfrom temp storage"]
+        P3_0B["P3.0B: Embed chunks\n(deferred phase)"]
+        P3_0C["P3.0C: Upsert vectors\nto Qdrant"]
+        P3_0D["P3.0D: UPDATE\nstatus → ready"]
+
         P3_1["P3.1: Get or Create\nChat Session"]
         P3_2["P3.2: Save User\nMessage"]
         P3_3["P3.3: Embed Question\n(via Embedder)"]
@@ -199,8 +234,8 @@ flowchart TD
         P3_5["P3.5: Assemble Context\nPrompt"]
         P3_6["P3.6: Stream LLM\nResponse"]
         P3_7["P3.7: Save Assistant\nMessage"]
-        
-        End(["SSE Stream Output\ndata: <token> ... data: [DONE]"])
+
+        End(["SSE Stream Output\ndata: token ... data: DONE"])
     end
 
     subgraph AI [Inference: Ollama]
@@ -209,12 +244,21 @@ flowchart TD
     end
 
     subgraph Data [Persistence Layer]
-        DB[("PostgreSQL\n(chat_sessions & messages)")]
+        DB[("PostgreSQL\n(chat_sessions & messages\n& documents)")]
+        FS_TMP[("Filesystem\n(chunks/)")]
         QD[("Qdrant\n(Cosine Search)")]
     end
 
-    %% --- CONTROL FLOW (Go Execution Sequence) ---
-    Start --> P3_1
+    %% Status gate
+    Start --> P3_0
+    P3_0 -->|"status = draft\nrun deferred phase"| P3_0A
+    P3_0A --> P3_0B
+    P3_0B --> P3_0C
+    P3_0C --> P3_0D
+    P3_0D --> P3_1
+    P3_0 -->|"status = ready\nskip to query"| P3_1
+
+    %% Main RAG flow
     P3_1 --> P3_2
     P3_2 --> P3_3
     P3_3 --> P3_4
@@ -223,31 +267,34 @@ flowchart TD
     P3_6 -->|"Streams tokens to client"| End
     P3_6 -->|"On stream completion"| P3_7
 
-    %% --- DATA & IO FLOW (Interactions with external systems) ---
+    %% IO — deferred phase
+    P3_0 <-->|"READ status"| DB
+    P3_0A <-->|"Read chunks"| FS_TMP
+    P3_0B <-->|"chunk texts\n[]float32 (768)"| OL_E
+    P3_0C ==>|"Upsert Points"| QD
+    P3_0D ==>|"UPDATE status: ready\nchunk_count"| DB
+
+    %% IO — RAG phase
     P3_1 <-->|"Read/Write Session"| DB
     P3_2 ==>|"Insert Message\n(role=user)"| DB
-    
     P3_3 <-->|"1. Question text\n2. []float32 (768)"| OL_E
-    P3_4 <-->|"Vector + Filter\nReturns Top-K {text, score, docID}"| QD
-    
-    P3_6 <-->|"1. System prompt + context + question\n2. Yields Tokens"| OL_C
-    
+    P3_4 <-->|"Vector + Filter\nTop-K {text, score, docID}"| QD
+    P3_6 <-->|"System prompt + context + question\nYields Tokens"| OL_C
     P3_7 ==>|"Insert Message\n(role=assistant)"| DB
 
-    %% --- STYLING ---
     style App fill:#ffffff,stroke:#333,stroke-width:2px
     style AI fill:#fff4dd,stroke:#d4a017,stroke-width:2px
     style Data fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    
-    %% Subtle styling for entry/exit nodes
+
     classDef io fill:#f9f9f9,stroke:#666,stroke-width:1px,stroke-dasharray: 5 5
+    classDef deferred fill:#f3e5f5,stroke:#6a1b9a,stroke-width:1px
     class Start,End io
+    class P3_0A,P3_0B,P3_0C,P3_0D deferred
 ```
 
 ---
 
 ## DFD Level 2 — Authentication (P1 Expanded)
-
 ```mermaid
 flowchart TD
     Email_Login(["📧 Email + Password"])
@@ -300,10 +347,24 @@ flowchart TD
 
 | Store | ID | Read By | Written By | Purpose |
 |-------|----|---------|-----------|---------|
-| PostgreSQL | D1 | All services | AuthService, ChatService, UserService, RAGPipeline | Relational/transactional data |
-| Qdrant | D2 | RAGPipeline | RAGPipeline | Vector similarity search |
-| Filesystem (temp) | D4 | RAGPipeline | Upload handler | Temporary file storage during ingestion |
+| PostgreSQL | D1 | All services | AuthService, ChatService, UserService, RAGPipeline | Relational/transactional data including document status lifecycle |
+| Qdrant | D2 | RAGPipeline (P3) | RAGPipeline deferred phase (P3.0C) | Vector similarity search — only written on first message send, not on upload |
+| Filesystem raw/ | D4a | RAGPipeline worker | Upload handler (P2) | Permanent storage of original uploaded files |
+| Filesystem chunks/ | D4b | RAGPipeline deferred phase (P3.0A) | Upload handler (P2) | Temporary chunk storage for draft documents — deleted after embedding or after 24h |
 | Cookie (client-side) | D5 | All requests | Auth handlers | JWT access + refresh tokens |
+
+---
+
+## Data Stores — Document Status Lifecycle
+
+| Status | Set By | Meaning |
+|--------|--------|---------|
+| `draft` | Upload handler (P2.5) | File saved, chunks stored, not yet embedded |
+| `processing` | RAG engine (P3.0) | Deferred embedding phase in progress |
+| `ready` | RAG engine (P3.0D) | Embedded and searchable in Qdrant |
+| `failed` | RAG engine (P3.0) | Embedding failed, eligible for retry |
+
+---
 
 ## Data Classification
 
@@ -312,7 +373,9 @@ flowchart TD
 | User email | PII | PostgreSQL (plaintext) | Until account deletion |
 | Password hash | Sensitive | PostgreSQL | Until account deletion |
 | OAuth tokens | Sensitive | PostgreSQL (encrypt recommended) | Until expired/revoked |
-| Document text | Confidential | Qdrant payloads + filesystem (temp) | Until document deleted |
+| Document text (raw) | Confidential | Filesystem raw/ | Until document deleted by user |
+| Document chunks | Confidential | Filesystem chunks/ | Until first message send (then deleted after embedding) or 24h draft expiry |
+| Vector embeddings | Confidential | Qdrant payloads | Until document deleted |
 | Chat messages | Confidential | PostgreSQL | Until session/account deleted |
 | JWT claims | Internal | HTTP cookie (signed) | 15-minute TTL |
 | Refresh tokens | Sensitive | PostgreSQL (hashed) | 7-day TTL or revocation |

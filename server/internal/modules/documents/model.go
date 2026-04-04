@@ -1,0 +1,19 @@
+package documents
+
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
+
+type Document struct {
+	ID           uuid.UUID `json:"id"`
+	OwnerID      uuid.UUID `json:"owner_id"`
+	Name         string    `json:"name"`
+	OriginalName string    `json:"original_name"`
+	Size         int64     `json:"size"`
+	MimeType     string    `json:"mime_type"`
+	Status       string    `json:"status"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}

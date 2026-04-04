@@ -2,6 +2,7 @@ package auth
 
 import (
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/app"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/middleware"
 
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/users"
 	"github.com/go-chi/chi/v5"
@@ -10,15 +11,17 @@ import (
 type Module struct {
 	Handler *Handler
 	Service *Service
+	getUser middleware.GetUser
 }
 
-func New(app *app.Application, userService *users.Service) *Module {
+func New(app *app.Application, userService *users.Service, getUser middleware.GetUser) *Module {
 	repo := NewRepository(app.DB)
 	service := NewService(app.DB, repo, userService, app.Authenticator, &app.Config, app.Mailer)
 	handler := NewHandler(app, service)
 	return &Module{
 		Handler: handler,
 		Service: service,
+		getUser: getUser,
 	}
 }
 
@@ -26,5 +29,5 @@ func (module *Module) Name() string {
 	return "Authentication"
 }
 func (module *Module) RegisterRoutes(r chi.Router) {
-	RegisterRoutes(r, module.Handler)
+	RegisterRoutes(r, module.Handler, module.getUser)
 }

@@ -3,10 +3,10 @@ package sharedDocuments
 import (
 	"context"
 	"net/http"
-
 )
 
 type uploadCtxKeyType struct{}
+
 var UploadedFileCtxKey uploadCtxKeyType
 
 // Set the uploaded file in the request context

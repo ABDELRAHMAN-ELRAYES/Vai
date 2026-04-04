@@ -19,10 +19,10 @@ type UserClaims struct {
 	jwt.RegisteredClaims
 }
 
-type UserFetcher func(ctx context.Context, id string) (any, error)
+type GetUser func(ctx context.Context, id string) (any, error)
 
 // Protect check if the user is authenticated and attach its data to the request context
-func Protect(app *app.Application, fetcher UserFetcher) func(http.Handler) http.Handler {
+func Protect(app *app.Application, fetcher GetUser) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token, err := auth.GetTokenFromCookie(r)

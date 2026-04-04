@@ -41,10 +41,15 @@ func main() {
 		_ = logger.Sync()
 	}()
 
-	// Check & Create the file storage directory
+	// Check & Create the file storage directories
 	uploadDir := cfg.Upload.Dir
 	if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
 		logger.Error("Failed to create upload directory: %v", err)
+		return
+	}
+	chunksDir := cfg.Upload.ChunksDir
+	if err := os.MkdirAll(chunksDir, os.ModePerm); err != nil {
+		logger.Error("Failed to create chunks directory: %v", err)
 		return
 	}
 

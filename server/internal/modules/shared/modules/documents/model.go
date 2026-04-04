@@ -1,6 +1,8 @@
 package sharedDocuments
 
 type UploadedFile struct {
-	FileName string
-	Size     int64
+	OriginalName string
+	FileName     string
+	MimeType     string
+	Size         int64
 }

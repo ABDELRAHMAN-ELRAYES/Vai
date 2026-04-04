@@ -188,41 +188,64 @@ sequenceDiagram
     participant RP as RAGPipeline
     participant FS as Filesystem
     participant CH as Chunker
-    participant EC as EmbeddingClient
-    participant OL as Ollama
-    participant QD as Qdrant
     participant DB as PostgreSQL
+
+    Note over C,DB: ── Phase 1: Upload (synchronous, client waits) ──
 
     C->>MW: POST /documents/upload (multipart file + access_token cookie)
     MW->>MW: Validate JWT → extract userID
     MW->>H: Request with userID in context
     H->>RP: IngestDocument(userID, docID, source, file)
-    
+
     RP->>RP: P2.1 Validate File (size ≤ 10MB, MIME type)
-    RP->>FS: P2.2 Decode to UTF-8 & read/write temp file
-    FS-->>RP: UTF-8 text ready
-    
+    RP->>FS: P2.2 Write raw file to raw/
     RP->>CH: P2.3 Split(text, size=500, overlap=100)
     CH-->>RP: []Chunk (N chunks)
-    
+    RP->>FS: P2.4 Write chunks to chunks/
+    RP->>DB: P2.5 INSERT INTO documents (id, user_id, source, size_bytes, status: draft)
+    DB-->>RP: ok
+
+    RP-->>H: IngestResult{documentID, status: draft}
+    H-->>C: 202 Accepted {document_id, status: "draft"}
+
+    Note over C,DB: ── Phase 2: Message Send (triggered when user sends a message) ──
+
+    participant EC as EmbeddingClient
+    participant OL as Ollama
+    participant QD as Qdrant
+
+    C->>H: POST /chat {message, document_id}
+    H->>RP: PrepareDocument(documentID)
+    RP->>FS: Load chunks from chunks/
+    FS-->>RP: []Chunk
+
     loop For each chunk
         RP->>EC: Embed(chunk.Text)
-        EC->>OL: P2.4 POST /api/embeddings {model: "nomic-embed-text:v1.5", prompt: chunk}
+        EC->>OL: P2.6 POST /api/embeddings {model: "nomic-embed-text:v1.5", prompt: chunk}
         OL-->>EC: {embedding: [f32 × 768]}
         EC-->>RP: []float32
     end
-    
-    RP->>QD: P2.5 EnsureCollection("user_<userID>", vectorSize=768)
+
+    RP->>QD: P2.7 EnsureCollection("user_<userID>", vectorSize=768)
     QD-->>RP: ok (created or already exists)
-    
-    RP->>QD: P2.6 Upsert(collection, Point{id, vector, payload{docID, text, index}})
+    RP->>QD: P2.8 Upsert(collection, Point{id, vector, payload{docID, text, index}})
     QD-->>RP: ok
-    
-    RP->>DB: P2.7 INSERT INTO documents (id, user_id, source, chunk_count, size_bytes)
+    RP->>DB: P2.9 UPDATE documents SET status=ready, chunk_count=N WHERE id=docID
     DB-->>RP: ok
-    
-    RP-->>H: IngestResult{documentID, chunkCount, source}
-    H-->>C: 201 Created {document_id, chunks, source}
+
+    RP-->>H: ready
+    H->>RP: RunRAG(userID, documentID, message)
+    RP-->>H: streamed answer
+    H-->>C: 200 OK (streamed response)
+
+    Note over C,DB: ── Background: Cleanup Job (runs on schedule) ──
+
+    participant BG as Cleanup Worker
+
+    BG->>DB: SELECT id, local_path FROM documents WHERE status=draft AND created_at < NOW()-24h
+    DB-->>BG: []staleDrafts
+    BG->>FS: Delete raw file + chunks for each
+    BG->>DB: DELETE FROM documents WHERE id IN (staleDraftIDs)
 ```
 
 ---

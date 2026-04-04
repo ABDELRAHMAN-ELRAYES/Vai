@@ -89,7 +89,9 @@ func saveFile(part *multipart.Part, uploadDir string) (*sharedDocuments.Uploaded
 	}
 
 	return &sharedDocuments.UploadedFile{
-		FileName: fileName,
-		Size:     size,
+		OriginalName: uploadedFileName,
+		FileName:     fileName,
+		MimeType:     part.Header.Get("Content-Type"),
+		Size:         size,
 	}, nil
 }

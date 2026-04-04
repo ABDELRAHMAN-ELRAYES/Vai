@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/db"
-	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/ai"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/users"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/rag-engine/ai"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/validator"
 	apierror "github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/errors"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/utils"

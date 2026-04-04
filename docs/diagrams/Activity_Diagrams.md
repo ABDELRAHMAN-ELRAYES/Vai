@@ -142,98 +142,77 @@ flowchart TD
         direction TB
         Start([Start Request])
         A["POST /documents/upload<br>(multipart file)"]
-        
+
         %% Validations
         F{"File size<br>≤ 10MB?"}
         H{"Valid MIME<br>type?"}
         J["Decode bytes<br>as UTF-8 text"]
-        
-        %% Processing Loop
+
+        %% Processing
         M["Chunker.Split text<br>size=500, overlap=100"]
-        N["For each chunk..."]
-        Q{"More chunks?"}
-        
+        SAVE["Save chunks to<br>temp storage"]
+
         %% Returns
         C["Return 401<br>Unauthorized"]
         E["Return 403<br>Email not verified"]
         G["Return 413<br>File too large"]
         I["Return 422<br>Unsupported file type"]
-        S["Return 201 Created<br>(docID, chunks, source)"]
-        
+        S["Return 202 Accepted<br>(docID, status: draft)"]
+
         End([End Request])
     end
 
     subgraph Data [Persistence Layer]
         direction TB
-        K{"Qdrant collection<br>exists for user?"}
-        L["Create collection<br>vectorSize=768"]
-        P["Qdrant.Upsert point<br>(vector + payload)"]
-        R["INSERT documents<br>metadata to PostgreSQL"]
-    end
-
-    subgraph AI [Inference Layer]
-        direction TB
-        O["Ollama.Embed chunk<br>(nomic-embed-text:v1.5)"]
+        R["INSERT documents<br>(status: draft) → PostgreSQL"]
+        CLEANUP["Background Job<br>Delete drafts older than 24h"]
     end
 
     %% --- CONTROL FLOW ---
-    
+
     Start --> A
     A --> B
-    
-    %% Auth Check
+
     B -->|No| C
     C --> End
     B -->|Yes| D
-    
-    %% Email Check
+
     D -->|No| E
     E --> End
     D -->|Yes| F
-    
-    %% Size Check
+
     F -->|No| G
     G --> End
     F -->|Yes| H
-    
-    %% MIME Check
+
     H -->|No| I
     I --> End
     H -->|Yes| J
-    
-    %% Qdrant Init
-    J --> K
-    K -->|No| L
-    L --> M
-    K -->|Yes| M
-    
-    %% Chunking & Embedding Loop
-    M --> N
-    N --> O
-    O --> P
-    P --> Q
-    Q -->|Yes| N
-    
-    %% Final DB Insert
-    Q -->|No| R
+
+    J --> M
+    M --> SAVE
+    SAVE --> R
     R --> S
     S --> End
+
+    CLEANUP -.->|"Periodic scan<br>DELETE status=draft AND age > 24h"| R
 
     %% --- STYLING ---
     style Middleware fill:#f9f9f9,stroke:#666,stroke-width:2px,stroke-dasharray: 5 5
     style App fill:#ffffff,stroke:#333,stroke-width:2px
     style Data fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    style AI fill:#fff4dd,stroke:#d4a017,stroke-width:2px
 
-    %% Node-specific semantic styling
     classDef terminal fill:#333,stroke:#333,stroke-width:2px,color:#fff
     class Start,End terminal
-    
+
     classDef error fill:#ffebee,stroke:#c62828,stroke-width:1px,color:#b71c1c
     class C,E,G,I error
-    
+
     classDef success fill:#e8f5e9,stroke:#2e7d32,stroke-width:1px,color:#1b5e20
     class S success
+
+    classDef cleanup fill:#fff9c4,stroke:#f9a825,stroke-width:1px,color:#e65100
+    class CLEANUP cleanup
 ```
 
 ---

@@ -2,14 +2,16 @@ package documents
 
 import (
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/app"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/middleware"
 	"github.com/go-chi/chi/v5"
 )
 
 type Module struct {
-	handler *Handler
+	handler     *Handler
+	getUser middleware.GetUser
 }
 
-func New(app *app.Application) *Module {
+func New(app *app.Application, getUser middleware.GetUser) *Module {
 
 	qdrantClient := &QdrantClient{
 		client:         app.QdrantDB,
@@ -27,7 +29,8 @@ func New(app *app.Application) *Module {
 	handler := NewHandler(app, service)
 
 	return &Module{
-		handler: handler,
+		handler:     handler,
+		getUser: getUser,
 	}
 
 }
@@ -36,6 +39,6 @@ func (m *Module) Name() string {
 	return "documents"
 }
 func (m *Module) RegisterRoutes(r chi.Router) {
-	RegisterRoutes(r, m.handler)
+	RegisterRoutes(r, m.handler, m.getUser)
 
 }
