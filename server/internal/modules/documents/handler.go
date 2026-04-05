@@ -9,6 +9,7 @@ import (
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/users"
 	apierror "github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/errors"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/httputil"
+
 	"github.com/google/uuid"
 )
 
@@ -38,7 +39,7 @@ func (handler *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 		apierror.Unauthorized(handler.app.Logger, w, r, apierror.ErrUnauthorized)
 		return
 	}
-
+	ctx := r.Context()
 	ownerID, err := uuid.Parse(user.ID)
 	if err != nil {
 		apierror.InternalServerError(handler.app.Logger, w, r, err)
@@ -46,11 +47,18 @@ func (handler *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Save document metadata
-	doc, err := handler.service.CreateDocument(r.Context(), ownerID, result)
+	doc, err := handler.service.CreateDocument(ctx, ownerID, result)
 	if err != nil {
 		apierror.InternalServerError(handler.app.Logger, w, r, err)
 		return
 	}
+
+	// Chunk document in background	
+	go func() {
+		if err := handler.service.GenerateChunks(&handler.app.Config.RAG.Chunker, handler.app.Config.Upload.Dir, doc); err != nil {
+			handler.app.Logger.Error("failed to generate chunks", "error", err)
+		}
+	}()
 
 	if err := httputil.JSONResponse(w, http.StatusAccepted, doc, "file uploaded successfully"); err != nil {
 		apierror.InternalServerError(handler.app.Logger, w, r, err)

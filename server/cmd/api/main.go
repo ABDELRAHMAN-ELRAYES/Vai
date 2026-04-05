@@ -8,6 +8,7 @@ import (
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/config"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/db"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/mailer"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/rag-engine"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/server"
 	"go.uber.org/zap"
 )
@@ -47,7 +48,7 @@ func main() {
 		logger.Error("Failed to create upload directory: %v", err)
 		return
 	}
-	chunksDir := cfg.Upload.ChunksDir
+	chunksDir := cfg.RAG.Chunker.ChunksDir
 	if err := os.MkdirAll(chunksDir, os.ModePerm); err != nil {
 		logger.Error("Failed to create chunks directory: %v", err)
 		return
@@ -85,6 +86,8 @@ func main() {
 		logger.Fatal("Mailer Failed : ", err)
 	}
 
+	ragEngine := rag.New(logger, &cfg.RAG)
+
 	app := app.New(
 		cfg,
 		logger,
@@ -92,6 +95,7 @@ func main() {
 		qdrantClient,
 		authenticator,
 		mailer,
+		ragEngine,
 	)
 	// Create Router
 	mux := server.NewRouter(app)

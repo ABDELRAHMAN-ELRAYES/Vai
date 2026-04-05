@@ -8,20 +8,20 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/app"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/config"
 )
 
 type Client struct {
 	baseURL string
 	http    *http.Client // responsible for sending requests and recieving responses
-	app     *app.Application
+	cfg     *config.AI
 }
 
-func NewClient(app *app.Application, baseURL string) *Client {
+func NewClient(cfg *config.AI, baseURL string) *Client {
 	return &Client{
 		baseURL: baseURL,
 		http:    &http.Client{},
-		app:     app,
+		cfg:     cfg,
 	}
 }
 
@@ -35,7 +35,7 @@ func (c *Client) GenerateStream(ctx context.Context, prompt string) (<-chan stri
 		defer close(errStream)
 
 		reqBody := GenerateRequest{
-			Model:  c.app.Config.AI.Name,
+			Model:  c.cfg.Name,
 			Prompt: prompt,
 			Stream: true,
 		}

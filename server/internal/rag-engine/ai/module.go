@@ -1,7 +1,8 @@
 package ai
 
 import (
-	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/app"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/config"
+	"go.uber.org/zap"
 )
 
 var (
@@ -9,22 +10,22 @@ var (
 	AIRole   = "ai"
 )
 
-type Module struct {
+type AIModule struct {
 	Client  *Client
 	Service *Service
 }
 
-func New(app *app.Application) *Module {
+func New(logger *zap.SugaredLogger, cfg *config.AI) *AIModule {
 
-	client := NewClient(app, app.Config.AI.BaseURL)
+	client := NewClient(cfg, cfg.BaseURL)
 	service := NewService(client)
 
 	err := LoadPrompts()
 	if err != nil {
-		app.Logger.Info("Prompts : ", err)
+		logger.Info("Prompts : ", err)
 	}
 
-	return &Module{
+	return &AIModule{
 		Client:  client,
 		Service: service,
 	}

@@ -123,7 +123,7 @@ func (service *Service) generateTitle(ctx context.Context, msg string) (string, 
 	}
 	// 2. send the prompt to the LLM
 	tokenChan, errChan := service.aiService.Generate(ctx, prompt)
-	service.logger.Info("Title result : ",<-tokenChan,"Error: ",<-errChan)
+	service.logger.Info("Title result : ", <-tokenChan, "Error: ", <-errChan)
 
 	// 3. collect the response tokens
 	replyChan, _, _ := service.aiService.CollectTokens(tokenChan, errChan)
@@ -261,7 +261,7 @@ func (service *Service) SendMessage(ctx context.Context, payload SendMessagePayl
 	tokenChan, errChan := service.aiService.Generate(ctx, chatPrompt)
 	replyChan, tokenStream, errStream := service.aiService.CollectTokens(tokenChan, errChan)
 
-	// 7. Save the AI reply 
+	// 7. Save the AI reply
 	go service.saveReply(context.Background(), payload.ConversationID, replyChan)
 
 	return tokenStream, errStream, nil

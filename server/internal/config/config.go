@@ -6,60 +6,6 @@ import (
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/env"
 )
 
-type Config struct {
-	Addr          string
-	Env           string
-	APIURL        string
-	FrontendURL   string
-	DB            DB
-	AI            AI
-	QdrantDB      QdrantConfig
-	Authenticator AuthenticatorConfig
-	Mail          Mail
-	Upload        UploadConfig
-}
-
-// DB holds database related configuration.
-type DB struct {
-	Addr         string
-	MaxOpenConns int
-	MaxIdleConns int
-	MaxIdleTime  string
-}
-type AI struct {
-	BaseURL        string
-	Name           string
-	EmBeddingModel string
-}
-type QdrantConfig struct {
-	Host string
-	Port int
-}
-type AuthenticatorConfig struct {
-	JWT JWTConfig
-}
-type JWTConfig struct {
-	Secret       string
-	Iss          string
-	Aud          string
-	SessionExp   time.Duration
-	MailTokenExp time.Duration
-}
-type Mail struct {
-	SMTPHost     string
-	SMTPPort     int
-	SMTPUser     string
-	SMTPPassword string
-	FromName     string
-	FromAddress  string
-	SupportEmail string
-	Expiry       time.Duration
-}
-type UploadConfig struct {
-	Dir       string
-	ChunksDir string
-}
-
 func Load() Config {
 	return Config{
 		Addr:        env.GetStringEnv("ADDR", ":8080"),
@@ -72,10 +18,17 @@ func Load() Config {
 			MaxIdleConns: env.GetIntEnv("DB_MAX_IDLE_CONNS", 30),
 			MaxIdleTime:  env.GetStringEnv("DB_MAX_IDLE_TIME", "15m"),
 		},
-		AI: AI{
-			BaseURL:        env.GetStringEnv("AI_MODEL_URL", "http://localhost:11434"),
-			Name:           env.GetStringEnv("AI_MODEL_NAME", "qwen3.5:4b"),
-			EmBeddingModel: env.GetStringEnv("AI_MODEL_EMBEDDING_NAME", "nomic-embed-text:v1.5"),
+		RAG: RAGConfig{
+			AI: AI{
+				BaseURL:        env.GetStringEnv("RAG_AI_MODEL_URL", "http://localhost:11434"),
+				Name:           env.GetStringEnv("RAG_AI_MODEL_NAME", "qwen3.5:4b"),
+				EmBeddingModel: env.GetStringEnv("RAG_AI_MODEL_EMBEDDING_NAME", "nomic-embed-text:v1.5"),
+			},
+			Chunker: ChunkerConfig{
+				ChunkSize: env.GetIntEnv("RAG_CHUNKER_CHUNK_SIZE", 512),
+				Overlap:   env.GetIntEnv("RAG_CHUNKER_OVERLAP_SIZE", 70),
+				ChunksDir: env.GetStringEnv("UPLOAD_CHUNKS_DIR", "./uploads/chunks"),
+			},
 		},
 		QdrantDB: QdrantConfig{
 			Host: env.GetStringEnv("QDRANT_DB_HOST", "localhost"),
@@ -101,8 +54,7 @@ func Load() Config {
 			Expiry:       73 * time.Hour,
 		},
 		Upload: UploadConfig{
-			Dir:       env.GetStringEnv("UPLOAD_DIR", "./uploads/raw"),
-			ChunksDir: env.GetStringEnv("UPLOAD_CHUNKS_DIR", "./uploads/chunks"),
+			Dir: env.GetStringEnv("UPLOAD_DIR", "./uploads/raw"),
 		},
 	}
 }

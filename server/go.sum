@@ -1,3 +1,5 @@
+github.com/ABDELRAHMAN-ELRAYES/go-chunker v1.1.1 h1:kXZI+82xe54oM6DNco+V5URnRYP1Wlx1GFm2+1ZHL68=
+github.com/ABDELRAHMAN-ELRAYES/go-chunker v1.1.1/go.mod h1:SAx6sU5q9t/QRvA9z7anfU0RoCuYJdP2T0OiFLfAyrQ=
 github.com/KyleBanks/depth v1.2.1 h1:5h8fQADFrWtarTdtDudMmGsC7GPbOAu6RVB3ffsVFHc=
 github.com/KyleBanks/depth v1.2.1/go.mod h1:jzSb9d0L43HxTQfT+oSA1EEp2q+ne2uh6XgeJcm8brE=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=

@@ -1,6 +1,6 @@
 module github.com/ABDELRAHMAN-ELRAYES/Vai
 
-go 1.25.7
+go 1.26.1
 
 require (
 	github.com/go-chi/chi/v5 v5.2.5
@@ -18,6 +18,7 @@ require (
 )
 
 require (
+	github.com/ABDELRAHMAN-ELRAYES/go-chunker v1.1.1 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect

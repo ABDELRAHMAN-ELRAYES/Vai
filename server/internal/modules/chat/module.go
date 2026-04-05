@@ -4,7 +4,6 @@ import (
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/app"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/middleware"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/users"
-	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/rag-engine/ai"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -15,12 +14,11 @@ type Module struct {
 
 func New(
 	app *app.Application,
-	aiService *ai.Service,
 	userService *users.Service,
 	getUser middleware.GetUser) *Module {
 
 	repo := NewRepository(app.DB)
-	service := NewService(app.DB, repo, aiService, app.Logger, userService)
+	service := NewService(app.DB, repo, app.RAG.AI.Service, app.Logger, userService)
 	handler := NewHandler(app, service)
 
 	return &Module{

@@ -6,6 +6,7 @@ import (
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/auth"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/config"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/mailer"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/rag-engine"
 	"github.com/qdrant/go-client/qdrant"
 	"go.uber.org/zap"
 )
@@ -17,14 +18,17 @@ type Application struct {
 	QdrantDB      *qdrant.Client
 	Authenticator *auth.JWTAuthenticator
 	Mailer        mailer.Client
+	RAG           *rag.RAGEngine
 }
 
-func New(cfg config.Config,
+func New(
+	cfg config.Config,
 	logger *zap.SugaredLogger,
 	database *sql.DB,
 	qdrantClient *qdrant.Client,
 	authenticator *auth.JWTAuthenticator,
-	mailer mailer.Client) *Application {
+	mailer mailer.Client,
+	rag *rag.RAGEngine) *Application {
 	return &Application{
 		Config:        config.Load(),
 		Logger:        logger,
@@ -32,5 +36,6 @@ func New(cfg config.Config,
 		QdrantDB:      qdrantClient,
 		Authenticator: authenticator,
 		Mailer:        mailer,
+		RAG:           rag,
 	}
 }

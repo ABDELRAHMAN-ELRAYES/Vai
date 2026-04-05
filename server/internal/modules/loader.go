@@ -9,7 +9,6 @@ import (
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/documents"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/health"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/users"
-	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/rag-engine/ai"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -20,11 +19,10 @@ func Register(r chi.Router, app *app.Application) {
 		return userModule.Service.GetUser(ctx, id)
 	}
 
-	aiModule := ai.New(app)
 	healthModule := health.New(app)
 	documentsModule := documents.New(app, getUser)
-	authModule := auth.New(app, userModule.Service,getUser)
-	chatModule := chat.New(app, aiModule.Service, userModule.Service, getUser)
+	authModule := auth.New(app, userModule.Service, getUser)
+	chatModule := chat.New(app, userModule.Service, getUser)
 
 	modules := []Module{
 		healthModule,
