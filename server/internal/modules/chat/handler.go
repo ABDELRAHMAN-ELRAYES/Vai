@@ -61,11 +61,12 @@ func (handler *Handler) StartConversation(w http.ResponseWriter, r *http.Request
 	user := ctx.Value(shared.UserCtxKey).(*users.User)
 	// 4. Form the service payload
 	startConversationPayload := &StartConversationPayload{
-		UserID:  user.ID,
-		Title:   "Default",
-		Message: startConversationDTO.Message,
+		UserID:     user.ID,
+		Title:      "Default",
+		Message:    startConversationDTO.Message,
+		DocumentID: startConversationDTO.DocumentID,
 	}
-	conversation, responseStream, errStream, err := handler.service.StartConversation(ctx, *startConversationPayload)
+	conversation, responseStream, errStream, err := handler.service.StartConversation(ctx, *startConversationPayload, handler.app.Config.RAG.Chunker.ChunksDir)
 	if err != nil {
 		switch err {
 		case apierror.ErrNotFound:
@@ -267,6 +268,7 @@ func (handler *Handler) GetChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
+
 // SendMessage godoc
 //
 //	@Summary		Continue conversation
@@ -309,9 +311,10 @@ func (handler *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 		ConversationID: id,
 		UserID:         user.ID,
 		Message:        sendMessageDTO.Message,
+		DocumentID:     sendMessageDTO.DocumentID,
 	}
 
-	tokenStream, errStream, err := handler.service.SendMessage(ctx, payload)
+	tokenStream, errStream, err := handler.service.SendMessage(ctx, payload, handler.app.Config.RAG.Chunker.ChunksDir)
 	if err != nil {
 		switch err {
 		case apierror.ErrNotFound:

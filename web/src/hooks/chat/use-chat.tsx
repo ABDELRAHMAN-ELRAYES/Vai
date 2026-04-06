@@ -18,12 +18,32 @@ const MESSAGE_TEMPLATES = {
 } as const;
 
 export const useChat = (id?: string) => {
+  const [prevId, setPrevId] = useState(id);
   const [state, setState] = useState<ChatState>({
     chatId: id || null,
     messages: [],
     isLoading: false,
     error: null,
   });
+
+  if (id !== prevId) {
+    setPrevId(id);
+    if (!id) {
+      setState({
+        chatId: null,
+        messages: [],
+        isLoading: false,
+        error: null,
+      });
+    } else if (id !== state.chatId) {
+      setState({
+        chatId: id,
+        messages: [],
+        isLoading: false,
+        error: null,
+      });
+    }
+  }
 
   const queryClient = useQueryClient();
   const {
@@ -35,15 +55,7 @@ export const useChat = (id?: string) => {
 
   // Get the chat data according to the entered id
   useEffect(() => {
-    if (!id) {
-      setState({
-        chatId: null,
-        messages: [],
-        isLoading: false,
-        error: null,
-      });
-      return;
-    }
+    if (!id) return;
 
     if (isQueryError) {
       toast.error("Failed to load conversation");
@@ -56,22 +68,27 @@ export const useChat = (id?: string) => {
     }
 
     if (conversationData) {
-      setState({
-        chatId: conversationData.id,
-        messages: conversationData.messages.map((m) => ({
-          id: m.id,
-          content: m.content,
-          role: m.role as "user" | "ai",
-        })),
-        isLoading: false,
-        error: null,
+      setState((prev) => {
+        if (prev.isLoading) return prev;
+
+        return {
+          ...prev,
+          chatId: conversationData.id,
+          messages: conversationData.messages.map((m) => ({
+            id: m.id,
+            content: m.content,
+            role: m.role as "user" | "ai",
+          })),
+          isLoading: false,
+          error: null,
+        };
       });
     }
   }, [id, conversationData, isQueryError]);
 
   // Send Message
   const sendMessage = useCallback(
-    async (content: string) => {
+    async (content: string, documentId?: string) => {
       // Check the user enters a new message
       const messageContent: string = content.trim();
       if (!messageContent) {
@@ -102,8 +119,8 @@ export const useChat = (id?: string) => {
     try {
       // Send the request to the server
       const response = id
-        ? await chatApi.sendMessage(id, messageContent)
-        : await chatApi.startConversation({ message: messageContent });
+        ? await chatApi.sendMessage(id, messageContent, documentId)
+        : await chatApi.startConversation({ message: messageContent, document_id: documentId });
 
       // Create ReadableStream reader and locks the stream to it
       if (!response.body) return;

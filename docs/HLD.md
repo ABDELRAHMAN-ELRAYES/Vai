@@ -1,4 +1,5 @@
 # High-Level Design (HLD)
+
 ## Vai — Privacy-First AI Document Assistant
 
 **Version:** 1.0  
@@ -32,13 +33,13 @@ All components are containerized and orchestrated via Docker Compose. The API la
 
 ## Architectural Goals
 
-| Goal | Decision |
-|------|----------|
-| **Privacy by design** | Zero external AI API calls. All inference local via Ollama. |
-| **Developer simplicity** | Single binary Go server. Single `docker compose up` to start everything. |
-| **Security** | JWT in HTTP-only cookies. Refresh token rotation. bcrypt passwords. User-scoped Qdrant collections. |
-| **Extensibility** | Config-driven model selection. Interface-based service layer for future swappability. |
-| **Performance** | Stateless API. Streaming responses via SSE. Connection pooling (pgx). |
+| Goal                     | Decision                                                                                            |
+| ------------------------ | --------------------------------------------------------------------------------------------------- |
+| **Privacy by design**    | Zero external AI API calls. All inference local via Ollama.                                         |
+| **Developer simplicity** | Single binary Go server. Single `docker compose up` to start everything.                            |
+| **Security**             | JWT in HTTP-only cookies. Refresh token rotation. bcrypt passwords. User-scoped Qdrant collections. |
+| **Extensibility**        | Config-driven model selection. Interface-based service layer for future swappability.               |
+| **Performance**          | Stateless API. Streaming responses via SSE. Connection pooling (pgx).                               |
 
 ---
 
@@ -96,19 +97,20 @@ All components are containerized and orchestrated via Docker Compose. The API la
 
 The HTTP server exposes REST endpoints organized into five route groups:
 
-| Route Group | Purpose |
-|-------------|---------|
-| `/auth` | Registration, login, logout, refresh, OAuth, email verification, password reset |
-| `/users` | Profile management, account deletion |
-| `/documents` | Upload, list, get metadata, delete |
-| `/chat` | Session management, Q&A (sync + streaming), message history |
-| `/search` | Debug chunk retrieval without LLM |
+| Route Group  | Purpose                                                                         |
+| ------------ | ------------------------------------------------------------------------------- |
+| `/auth`      | Registration, login, logout, refresh, OAuth, email verification, password reset |
+| `/users`     | Profile management, account deletion                                            |
+| `/documents` | Upload, list, get metadata, delete                                              |
+| `/chat`      | Session management, Q&A (sync + streaming), message history                     |
+| `/search`    | Debug chunk retrieval without LLM                                               |
 
 The API layer is **stateless** — all state is persisted in PostgreSQL or Qdrant. Middleware runs on every request: JWT validation extracts the user identity and injects it into the request context.
 
 ### Authentication Service
 
 Handles all identity operations:
+
 - **Registration**: Validate → bcrypt hash → insert user → send verification email
 - **Login**: Lookup by email → bcrypt compare → issue JWT (15min) + refresh token (7d)
 - **Token Refresh**: Validate refresh token against DB → rotate (invalidate old, issue new)
@@ -121,19 +123,21 @@ Handles all identity operations:
 The core intelligence of Vai. Two distinct workflows:
 
 **Ingestion:**
+
 ```
 Raw text → Chunker (500-char chunks, 100-char overlap)
          → Ollama /api/embeddings (nomic-embed-text:v1.5)
-         → Qdrant Upsert (vector + payload: doc_id, text, index)
+         → Qdrant Upsert (vector + payload: document_id, text, index)
          → PostgreSQL INSERT (document metadata)
 ```
 
 **Query:**
+
 ```
 Question → Ollama /api/embeddings → query vector
          → Qdrant Search (cosine similarity, top-K)
          → Assemble context prompt (system + chunks + question)
-         → Ollama /api/chat (qwen3.5:4b) → stream tokens via SSE
+         → Ollama /api/chat (llama2.3:3b) → stream tokens via SSE
          → Save complete response to PostgreSQL chat_messages
 ```
 
@@ -149,18 +153,18 @@ Wraps SMTP delivery. All emails support HTML + plain text alternatives. Token ge
 
 ## Data Storage Strategy
 
-| Data Type | Storage | Reason |
-|-----------|---------|--------|
-| User accounts & credentials | PostgreSQL `users` | ACID, relational queries |
-| JWT refresh tokens | PostgreSQL `refresh_tokens` | Needs revocation, multi-device |
-| Email verification tokens | PostgreSQL `verification_tokens` | TTL + one-time use semantics |
-| Password reset tokens | PostgreSQL `password_reset_tokens` | TTL + one-time use semantics |
-| OAuth provider links | PostgreSQL `oauth_accounts` | Relational join with users |
-| Document metadata | PostgreSQL `documents` | List/filter by user, FK constraints |
-| Chat sessions | PostgreSQL `chat_sessions` | User-scoped, ordered by time |
-| Chat messages | PostgreSQL `chat_messages` | Ordered sequence, role + content |
-| Document vector embeddings | Qdrant `user_{userID}` collection | Cosine similarity search |
-| Uploaded files (temp) | Local filesystem | Deleted after ingestion completes |
+| Data Type                   | Storage                            | Reason                              |
+| --------------------------- | ---------------------------------- | ----------------------------------- |
+| User accounts & credentials | PostgreSQL `users`                 | ACID, relational queries            |
+| JWT refresh tokens          | PostgreSQL `refresh_tokens`        | Needs revocation, multi-device      |
+| Email verification tokens   | PostgreSQL `verification_tokens`   | TTL + one-time use semantics        |
+| Password reset tokens       | PostgreSQL `password_reset_tokens` | TTL + one-time use semantics        |
+| OAuth provider links        | PostgreSQL `oauth_accounts`        | Relational join with users          |
+| Document metadata           | PostgreSQL `documents`             | List/filter by user, FK constraints |
+| Chat sessions               | PostgreSQL `chat_sessions`         | User-scoped, ordered by time        |
+| Chat messages               | PostgreSQL `chat_messages`         | Ordered sequence, role + content    |
+| Document vector embeddings  | Qdrant `user_{userID}` collection  | Cosine similarity search            |
+| Uploaded files (temp)       | Local filesystem                   | Deleted after ingestion completes   |
 
 ---
 
@@ -227,7 +231,7 @@ GET /auth/google/callback?code=...&state=...
 5. EnsureCollection(userID) → creates Qdrant collection if not exists
 6. For each chunk (parallelizable):
    a. Ollama.Embed(chunk.Text, model="nomic-embed-text:v1.5") → []float32 (768-dim)
-   b. QdrantClient.Upsert(collection, id=hash(docID+chunkIndex), vector, payload)
+   b. QdrantClient.Upsert(collection, id=hash(documentID+chunkIndex), vector, payload)
 7. PostgreSQL.InsertDocument(id, userID, source, chunkCount)
 8. Return {document_id, chunks, source}
 ```
@@ -237,13 +241,13 @@ GET /auth/google/callback?code=...&state=...
 ```
 1. Receive question string + userID (from JWT)
 2. Ollama.Embed(question, model="nomic-embed-text:v1.5") → queryVector
-3. QdrantClient.Search(collection=user_{userID}, vector=queryVector, topK, filter=docID?)
-   → []SearchResult{text, docID, score}
+3. QdrantClient.Search(collection=user_{userID}, vector=queryVector, topK, filter=documentID?)
+   → []SearchResult{text, documentID, score}
 4. Assemble prompt:
    System: "Answer the question using ONLY the provided context. If the answer is not in the context, say so."
    Context: chunk1.text + "\n---\n" + chunk2.text + ...
    User: question
-5. Ollama.StreamChat(prompt, model="qwen3.5:4b") → token channel
+5. Ollama.StreamChat(prompt, model="llama2.3:3b") → token channel
 6. Write SSE: for each token → "data: {token}\n\n"
 7. Send "data: [DONE]\n\n"
 8. Assemble full response → PostgreSQL.InsertMessage(sessionID, "assistant", fullText)
@@ -253,41 +257,42 @@ GET /auth/google/callback?code=...&state=...
 
 ## Security Architecture
 
-| Concern | Mitigation |
-|---------|-----------|
-| XSS token theft | JWT in HTTP-only cookie — not accessible to JavaScript |
-| CSRF attacks | SameSite=Strict cookie + OAuth state parameter validation |
-| Password compromise | bcrypt hash with cost factor 12. Plaintext never stored or logged |
-| Token replay | Refresh token rotation — old token invalidated on each use |
-| OAuth CSRF | State parameter validated before code exchange |
-| Brute force | Rate limiting on /auth/login, /auth/register, /auth/forgot-password |
-| Data isolation | Qdrant collections namespaced per user. DB queries always filter by user_id |
-| Email enumeration | Password reset always returns 202 regardless of email existence |
-| Token forging | Email tokens are HMAC-SHA256 signed with server secret |
+| Concern             | Mitigation                                                                                |
+| ------------------- | ----------------------------------------------------------------------------------------- |
+| XSS token theft     | JWT in HTTP-only cookie — not accessible to JavaScript                                    |
+| CSRF attacks        | SameSite=Strict cookie + OAuth state parameter validation                                 |
+| Password compromise | bcrypt hash with cost factor 12. Plaintext never stored or logged                         |
+| Token replay        | Refresh token rotation — old token invalidated on each use                                |
+| OAuth CSRF          | State parameter validated before code exchange                                            |
+| Brute force         | Rate limiting on /auth/login, /auth/register, /auth/forgot-password                       |
+| Data isolation      | Qdrant collections namespaced per user. DB queries always filter by user_id               |
+| Email enumeration   | Password reset always returns 202 regardless of email existence                           |
+| Token forging       | Email tokens are HMAC-SHA256 signed with server secret                                    |
 | Refresh token theft | Tokens stored as SHA-256 hash in DB. Rotating means stolen tokens are quickly invalidated |
 
 ---
 
 ## Technology Choices & Rationale
 
-| Component | Choice | Rationale |
-|-----------|--------|-----------|
-| **Backend language** | Go 1.22+ | High concurrency, low latency, single binary, excellent stdlib HTTP server |
-| **HTTP router** | Chi or standard net/http | Lightweight, idiomatic Go, middleware composition |
-| **Relational DB** | PostgreSQL 16 | ACID, mature, excellent pgx/v5 Go driver, JSONB support if needed |
-| **Vector DB** | Qdrant | Purpose-built, excellent Go client, cosine/dot product/euclidean, payload filtering |
-| **LLM runtime** | Ollama | Unified local runner, REST API, supports CPU + GPU, model management built-in |
-| **Auth library** | golang-jwt/jwt | Widely used, well-maintained, HS256 + RS256 support |
-| **Password hashing** | golang.org/x/crypto/bcrypt | Standard, configurable cost factor |
-| **DB migrations** | golang-migrate/migrate | SQL-first, up/down migrations, CLI + Go API |
-| **Containerization** | Docker + Docker Compose | Universal, no Kubernetes complexity for v1.0 |
-| **Email** | net/smtp (stdlib) or gomail | Simple, no external dependency for SMTP |
+| Component            | Choice                      | Rationale                                                                           |
+| -------------------- | --------------------------- | ----------------------------------------------------------------------------------- |
+| **Backend language** | Go 1.22+                    | High concurrency, low latency, single binary, excellent stdlib HTTP server          |
+| **HTTP router**      | Chi or standard net/http    | Lightweight, idiomatic Go, middleware composition                                   |
+| **Relational DB**    | PostgreSQL 16               | ACID, mature, excellent pgx/v5 Go driver, JSONB support if needed                   |
+| **Vector DB**        | Qdrant                      | Purpose-built, excellent Go client, cosine/dot product/euclidean, payload filtering |
+| **LLM runtime**      | Ollama                      | Unified local runner, REST API, supports CPU + GPU, model management built-in       |
+| **Auth library**     | golang-jwt/jwt              | Widely used, well-maintained, HS256 + RS256 support                                 |
+| **Password hashing** | golang.org/x/crypto/bcrypt  | Standard, configurable cost factor                                                  |
+| **DB migrations**    | golang-migrate/migrate      | SQL-first, up/down migrations, CLI + Go API                                         |
+| **Containerization** | Docker + Docker Compose     | Universal, no Kubernetes complexity for v1.0                                        |
+| **Email**            | net/smtp (stdlib) or gomail | Simple, no external dependency for SMTP                                             |
 
 ---
 
 ## Deployment Architecture
 
 ### Development
+
 ```
 docker compose up
   ├── vai-api        (Go binary, hot-reload via Air)
@@ -297,6 +302,7 @@ docker compose up
 ```
 
 ### Production (Recommended)
+
 ```
                      Internet
                         │
@@ -306,21 +312,21 @@ docker compose up
                    /              \
           [PostgreSQL]          [Qdrant]
               :5432               :6333
-                                  
+
           [Ollama :11434]  ← separate machine or GPU server recommended
-          
+
           [SMTP Provider]  ← outbound only (Mailgun, SendGrid, Postfix)
 ```
 
 ### Environment Variables (Key)
 
-| Variable | Purpose |
-|----------|---------|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `JWT_SECRET` | HS256 signing key (min 32 chars) |
-| `OLLAMA_URL` | Ollama server address |
-| `QDRANT_URL` | Qdrant HTTP API address |
-| `GOOGLE_CLIENT_ID` | OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | OAuth client secret |
-| `SMTP_HOST` / `SMTP_PORT` | Email delivery |
-| `APP_URL` | Public URL for email links |
+| Variable                  | Purpose                          |
+| ------------------------- | -------------------------------- |
+| `DATABASE_URL`            | PostgreSQL connection string     |
+| `JWT_SECRET`              | HS256 signing key (min 32 chars) |
+| `OLLAMA_URL`              | Ollama server address            |
+| `QDRANT_URL`              | Qdrant HTTP API address          |
+| `GOOGLE_CLIENT_ID`        | OAuth client ID                  |
+| `GOOGLE_CLIENT_SECRET`    | OAuth client secret              |
+| `SMTP_HOST` / `SMTP_PORT` | Email delivery                   |
+| `APP_URL`                 | Public URL for email links       |

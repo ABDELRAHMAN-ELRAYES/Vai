@@ -16,7 +16,7 @@ import { documentsApi } from "@/api/modules/documents/documents.api";
 
 
 interface ChatInputProps {
-  onSend: (message: string) => void;
+  onSend: (message: string, documentId?: string) => void;
   isLoading: boolean;
   disabled?: boolean;
 }
@@ -52,7 +52,8 @@ export const ChatInput = memo(
       // TODO: Send message with files
       toast.info(`Sending message with ${files.length} attachments...`);
 
-      onSend(input.trim());
+      const firstDocumentId = files.find((f) => f.status ===  "done")?.documentId;
+      onSend(input.trim(), firstDocumentId);
       setInput("");
       setFiles([]);
 
@@ -132,7 +133,7 @@ export const ChatInput = memo(
               ? {
                   ...f,
                   status: "done" as const,
-                  remoteName: response.filename,
+                  doccuId: response.data?.id,
                 }
               : f,
           ),

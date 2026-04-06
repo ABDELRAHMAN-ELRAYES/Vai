@@ -1,5 +1,11 @@
 export interface UploadResponse {
+  success: boolean;
   message: string;
-  filename: string;
-  size: number;
+  data: {
+    id: string;
+    original_name: string;
+    name: string;
+    size: number;
+    mime_type: string;
+  };
 }

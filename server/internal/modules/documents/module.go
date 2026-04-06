@@ -7,7 +7,8 @@ import (
 )
 
 type Module struct {
-	handler     *Handler
+	handler *Handler
+	Service *Service
 	getUser middleware.GetUser
 }
 
@@ -25,11 +26,12 @@ func New(app *app.Application, getUser middleware.GetUser) *Module {
 		return nil
 	}
 
-	service := NewService(repo)
+	service := NewService(repo, app.RAG.AI.Service)
 	handler := NewHandler(app, service)
 
 	return &Module{
-		handler:     handler,
+		handler: handler,
+		Service: service,
 		getUser: getUser,
 	}
 

@@ -46,19 +46,25 @@ func (handler *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Save document metadata
+	// Save document metadata (status: draft)
 	doc, err := handler.service.CreateDocument(ctx, ownerID, result)
 	if err != nil {
 		apierror.InternalServerError(handler.app.Logger, w, r, err)
 		return
 	}
 
-	// Chunk document in background	
-	go func() {
-		if err := handler.service.GenerateChunks(&handler.app.Config.RAG.Chunker, handler.app.Config.Upload.Dir, doc); err != nil {
-			handler.app.Logger.Error("failed to generate chunks", "error", err)
+	// Chunk document
+	err = handler.service.GenerateChunks(&handler.app.Config.RAG.Chunker, handler.app.Config.Upload.Dir, doc)
+	if err != nil {
+		handler.app.Logger.Error("failed to generate chunks", "error", err)
+		// delete the document if chunking failed
+		err = handler.service.DeleteDocument(ctx, doc.ID.String(), handler.app.Config.Upload.Dir, handler.app.Config.RAG.Chunker.ChunksDir)
+		if err != nil {
+			handler.app.Logger.Error("failed to delete document", "error", err)
 		}
-	}()
+		apierror.InternalServerError(handler.app.Logger, w, r, err)
+		return
+	}
 
 	if err := httputil.JSONResponse(w, http.StatusAccepted, doc, "file uploaded successfully"); err != nil {
 		apierror.InternalServerError(handler.app.Logger, w, r, err)

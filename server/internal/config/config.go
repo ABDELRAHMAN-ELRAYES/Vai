@@ -21,7 +21,7 @@ func Load() Config {
 		RAG: RAGConfig{
 			AI: AI{
 				BaseURL:        env.GetStringEnv("RAG_AI_MODEL_URL", "http://localhost:11434"),
-				Name:           env.GetStringEnv("RAG_AI_MODEL_NAME", "qwen3.5:4b"),
+				Name:           env.GetStringEnv("RAG_AI_MODEL_NAME", "llama3.2:3b"),
 				EmBeddingModel: env.GetStringEnv("RAG_AI_MODEL_EMBEDDING_NAME", "nomic-embed-text:v1.5"),
 			},
 			Chunker: ChunkerConfig{

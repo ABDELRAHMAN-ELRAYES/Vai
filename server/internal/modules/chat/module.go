@@ -3,6 +3,7 @@ package chat
 import (
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/app"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/middleware"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/documents"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/users"
 	"github.com/go-chi/chi/v5"
 )
@@ -15,10 +16,11 @@ type Module struct {
 func New(
 	app *app.Application,
 	userService *users.Service,
+	docService *documents.Service,
 	getUser middleware.GetUser) *Module {
 
 	repo := NewRepository(app.DB)
-	service := NewService(app.DB, repo, app.RAG.AI.Service, app.Logger, userService)
+	service := NewService(app.DB, repo, app.RAG.AI.Service, app.Logger, userService, docService)
 	handler := NewHandler(app, service)
 
 	return &Module{

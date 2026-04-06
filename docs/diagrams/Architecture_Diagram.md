@@ -1,4 +1,5 @@
 # Architecture Diagram
+
 ## Vai — Privacy-First AI Document Assistant
 
 **Version:** 1.0  
@@ -96,7 +97,7 @@ graph LR
     Pipe <--> QD
     Pipe <--> M_Gen
     Pipe --> PG
-    
+
     %% Email Trigger
     S_Chat --> S_Email
     S_Email -.-> SMTP
@@ -168,7 +169,7 @@ flowchart LR
     Embed["Ollama Embeddings\n→ query vector"]
     Qdrant[("Qdrant\nCosine Search\ntop-K chunks")]
     Prompt["Prompt Assembly\nsystem + context + question"]
-    Ollama["Ollama LLM\nqwen3.5:4b\nstreaming"]
+    Ollama["Ollama LLM\nllama2.3:3b\nstreaming"]
     SSE["📡 SSE Stream\ntoken by token"]
     PG[("PostgreSQL\nSave assistant\nmessage")]
 

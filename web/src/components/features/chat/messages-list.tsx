@@ -28,16 +28,18 @@ export const MessagesList = memo(
     }
 
     return (
-      <div className="flex-1 overflow-y-auto bg-white">
-        {messages.map((message, index) => (
-          <MessageBubble
-            key={message.id}
-            message={message}
-            isLatest={index === messages.length - 1}
-            isStreaming={isStreaming}
-          />
-        ))}
-        <div ref={messagesEndRef} className="h-20" />
+      <div className="flex-1 overflow-y-auto bg-white w-full">
+        <div className="w-full max-w-3xl md:max-w-220 lg:max-w-240 xl:max-w-250 2xl:max-w-272 mx-auto flex flex-col">
+          {messages.map((message, index) => (
+            <MessageBubble
+              key={message.id}
+              message={message}
+              isLatest={index === messages.length - 1}
+              isStreaming={isStreaming}
+            />
+          ))}
+          <div ref={messagesEndRef} className="h-20" />
+        </div>
       </div>
     );
   },

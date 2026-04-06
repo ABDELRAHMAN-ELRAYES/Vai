@@ -1,4 +1,5 @@
 # Activity Diagrams
+
 ## Vai — Process Workflows
 
 **Version:** 1.0  
@@ -157,7 +158,7 @@ flowchart TD
         E["Return 403<br>Email not verified"]
         G["Return 413<br>File too large"]
         I["Return 422<br>Unsupported file type"]
-        S["Return 202 Accepted<br>(docID, status: draft)"]
+        S["Return 202 Accepted<br>(documentID, status: draft)"]
 
         End([End Request])
     end
@@ -236,10 +237,10 @@ flowchart TD
     E --> I
     H --> I[INSERT user message\nrole=user · content=question]
     I --> J[Ollama.Embed question\nnomic-embed-text:v1.5]
-    J --> K[Qdrant.Search\nvector · topK · docID filter?]
+    J --> K[Qdrant.Search\nvector · topK · documentID filter?]
     K --> L[Assemble prompt:\nsystem + chunks + question]
     L --> M[Set response headers:\nContent-Type: text/event-stream\nCache-Control: no-cache\nX-Accel-Buffering: no]
-    M --> N[Ollama.StreamChat\nqwen3.5:4b · stream=true]
+    M --> N[Ollama.StreamChat\nllama2.3:3b · stream=true]
     N --> O{More tokens?}
     O -->|Yes| P[Write SSE event:\ndata: token\n\n]
     P --> O

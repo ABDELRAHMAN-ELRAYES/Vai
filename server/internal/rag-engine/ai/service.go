@@ -58,3 +58,7 @@ func (service *Service) CollectTokens(tokenChan <-chan string, errChan <-chan er
 
 	return replyChan, tokenStream, errStream
 }
+
+func (service *Service) EmbedBatch(ctx context.Context, input []string) ([][]float32, error) {
+	return service.client.EmbedBatch(ctx, input)
+}

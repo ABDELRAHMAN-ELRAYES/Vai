@@ -22,7 +22,7 @@ func Register(r chi.Router, app *app.Application) {
 	healthModule := health.New(app)
 	documentsModule := documents.New(app, getUser)
 	authModule := auth.New(app, userModule.Service, getUser)
-	chatModule := chat.New(app, userModule.Service, getUser)
+	chatModule := chat.New(app, userModule.Service, documentsModule.Service, getUser)
 
 	modules := []Module{
 		healthModule,

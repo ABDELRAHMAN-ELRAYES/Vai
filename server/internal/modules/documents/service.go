@@ -2,23 +2,31 @@ package documents
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/config"
 	sharedDocuments "github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/shared/modules/documents"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/rag-engine/ai"
+	apierror "github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/errors"
+	"github.com/qdrant/go-client/qdrant"
 
 	"github.com/ABDELRAHMAN-ELRAYES/go-chunker"
 	"github.com/google/uuid"
 )
 
 type Service struct {
-	repo *Repository
+	repo      *Repository
+	aiService *ai.Service
 }
 
-func NewService(repo *Repository) *Service {
+func NewService(repo *Repository, aiService *ai.Service) *Service {
 	return &Service{
-		repo: repo,
+		repo:      repo,
+		aiService: aiService,
 	}
 }
 
@@ -70,4 +78,123 @@ func (service *Service) GenerateChunks(cfg *config.ChunkerConfig, uploadDir stri
 	}
 
 	return nil
+}
+
+func (service *Service) DeleteDocument(ctx context.Context, documentID string, uploadDir string, chunksDir string) error {
+	// Get the document
+	doc, err := service.repo.GetDocumentByID(ctx, documentID)
+	if err != nil {
+		return err
+	}
+
+	// Delete from Postgres
+	err = service.repo.DeleteDocument(ctx, documentID)
+
+	// Delete from Qdrant
+	_ = service.repo.DeletePointsByDocumentID(ctx, documentID)
+
+	// Delete File Storage
+	if doc.Name != "" {
+		_ = os.Remove(filepath.Join(uploadDir, doc.Name))
+		ext := filepath.Ext(doc.Name)
+		base := strings.TrimSuffix(doc.Name, ext)
+		_ = os.Remove(filepath.Join(chunksDir, base+"_chunks.json"))
+	}
+
+	return err
+}
+
+// document status : draft -> processing -> ready / failed
+func (service *Service) EmbedDocument(ctx context.Context, documentID string, chunksDir string) error {
+	doc, err := service.repo.GetDocumentByID(ctx, documentID)
+	if err != nil {
+		return err
+	}
+
+	// Process the document if the status is draft
+	if doc.Status != "draft" {
+		return nil
+	}
+
+	// Set status to processing
+	_ = service.repo.UpdateStatus(ctx, documentID, "processing")
+
+	// Determine file name of the chunk
+	ext := filepath.Ext(doc.Name)
+	base := strings.TrimSuffix(doc.Name, ext)
+	chunksFilePath := filepath.Join(chunksDir, base+"_chunks.json")
+
+	// Read chunk JSON
+	data, err := os.ReadFile(chunksFilePath)
+	if err != nil {
+		_ = service.repo.UpdateStatus(ctx, documentID, "failed")
+		return apierror.ErrReadChunksFailed
+	}
+
+	var chunksFile DocumentChunksContent
+	if err := json.Unmarshal(data, &chunksFile); err != nil {
+		_ = service.repo.UpdateStatus(ctx, documentID, "failed")
+		return apierror.ErrUnmarshalChunksFailed
+	}
+
+
+	var points []*qdrant.PointStruct
+
+	var chunksModelInput []string
+
+	for _, chunk := range chunksFile.Chunks {
+		// Render prompt for the embedding model
+		promptData := &EmbedPromptData{
+			Text: chunk.Text,
+		}
+		prompt, err := ai.RenderPrompt(ai.EmbedDocumentPrompt, promptData)
+		if err != nil {
+			fmt.Printf("failed to render prompt for documentID %s: %v\n", documentID, err)
+			_ = service.repo.UpdateStatus(ctx, documentID, "failed")
+			return apierror.ErrEmbedChunksFailed
+		}
+		chunksModelInput = append(chunksModelInput, prompt)
+	}
+
+	if len(chunksModelInput) == 0 {
+		return service.repo.UpdateStatus(ctx, documentID, "ready")
+	}
+	// Embed the file chunks
+	embeddings, err := service.aiService.EmbedBatch(ctx, chunksModelInput)
+	if err != nil {
+		fmt.Printf("EmbedBatch failed for documentID %s: %v\n", documentID, err)
+		_ = service.repo.UpdateStatus(ctx, documentID, "failed")
+		return apierror.ErrEmbedChunksFailed
+	}
+	
+	// Form the Qdrant points
+	for i, chunk := range chunksFile.Chunks {
+		embedding := embeddings[i]
+
+		pointID := uuid.New().String()
+		payload := map[string]any{
+			"document_id": documentID,
+			"text":        chunk.Text,
+			"index":       chunk.Index,
+			"start_char":  chunk.StartChar,
+			"end_char":    chunk.EndChar,
+		}
+
+		points = append(points, &qdrant.PointStruct{
+			Id:      qdrant.NewIDUUID(pointID),
+			Vectors: qdrant.NewVectors(embedding...),
+			Payload: qdrant.NewValueMap(payload),
+		})
+	}
+
+	// Upsert vectors
+	if len(points) > 0 {
+		if err := service.repo.UpsertPoints(ctx, points); err != nil {
+			_ = service.repo.UpdateStatus(ctx, documentID, "failed")
+			return apierror.ErrUpsertVectorsFailed
+		}
+	}
+
+	// Update status
+	return service.repo.UpdateStatus(ctx, documentID, "ready")
 }

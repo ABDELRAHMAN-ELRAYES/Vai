@@ -14,13 +14,15 @@ export const MessageBubble = memo(
 
     return (
       <div
-        className={`flex gap-3 py-4 ${isUser ? "justify-end" : "justify-start"}`}
+        className={`flex gap-3 py-4 w-full ${isUser ? "justify-end" : "justify-start"}`}
         role="article"
         aria-label={`${message.role === "user" ? "Your" : "Assistant"} message`}
       >
         <div
-          className={`px-4 py-3 rounded-lg ${
-            isUser ? "bg-sidebar text-gray-900 rounded-br-none max-w-6xl" : ""
+          className={`px-4 py-3 rounded-2xl ${
+            isUser
+              ? "bg-sidebar text-gray-900 rounded-br-none w-fit max-w-[90%] md:max-w-[75%]"
+              : "w-full max-w-full overflow-x-auto"
           }`}
         >
           {message.isLoading && isLatest ? (
@@ -30,13 +32,19 @@ export const MessageBubble = memo(
               </span>
             </div>
           ) : message.error ? (
-            <p className="text-sm text-red-600">{message.error}</p>
+            <p className="text-sm text-red-600 wrap-break-word">
+              {message.error}
+            </p>
           ) : isUser ? (
             <p className="text-[16px] leading-relaxed whitespace-pre-wrap wrap-break-word">
               {message.content}
             </p>
           ) : (
-            <Streamdown isAnimating={isStreaming}>{message.content}</Streamdown>
+            <div className="wrap-break-word w-full overflow-hidden">
+              <Streamdown isAnimating={isStreaming}>
+                {message.content}
+              </Streamdown>
+            </div>
           )}
         </div>
       </div>

@@ -1,4 +1,5 @@
 # Low-Level Design (LLD)
+
 ## Vai — Privacy-First AI Document Assistant
 
 **Version:** 1.0  
@@ -265,7 +266,7 @@ type UpdateUserRequest struct {
 // services/chat/chat.go
 
 type ChatService interface {
-    CreateSession(ctx context.Context, userID uuid.UUID, title string, docID *string) (*models.ChatSession, error)
+    CreateSession(ctx context.Context, userID uuid.UUID, title string, documentID *string) (*models.ChatSession, error)
     ListSessions(ctx context.Context, userID uuid.UUID) ([]models.ChatSession, error)
     GetSession(ctx context.Context, userID, sessionID uuid.UUID) (*models.ChatSession, error)
     DeleteSession(ctx context.Context, userID, sessionID uuid.UUID) error
@@ -292,11 +293,11 @@ type EmailService interface {
 // rag/pipeline.go
 
 type RAGPipeline interface {
-    IngestDocument(ctx context.Context, userID uuid.UUID, docID, source, text string) (*IngestResult, error)
-    Search(ctx context.Context, userID uuid.UUID, query string, topK int, docID *string) ([]SearchResult, error)
-    Answer(ctx context.Context, userID uuid.UUID, question string, topK int, docID *string) (string, error)
-    StreamAnswer(ctx context.Context, userID uuid.UUID, question string, topK int, docID *string, w io.Writer) error
-    DeleteDocument(ctx context.Context, userID uuid.UUID, docID string) error
+    IngestDocument(ctx context.Context, userID uuid.UUID, documentID, source, text string) (*IngestResult, error)
+    Search(ctx context.Context, userID uuid.UUID, query string, topK int, documentID *string) ([]SearchResult, error)
+    Answer(ctx context.Context, userID uuid.UUID, question string, topK int, documentID *string) (string, error)
+    StreamAnswer(ctx context.Context, userID uuid.UUID, question string, topK int, documentID *string, w io.Writer) error
+    DeleteDocument(ctx context.Context, userID uuid.UUID, documentID string) error
 }
 
 type IngestResult struct {
@@ -399,6 +400,7 @@ function Split(text, chunkSize, overlap):
 ```
 
 **Example:** text of 1200 chars, size=500, overlap=100:
+
 - Chunk 0: chars 0–500
 - Chunk 1: chars 400–900
 - Chunk 2: chars 800–1200
@@ -408,9 +410,9 @@ function Split(text, chunkSize, overlap):
 ```go
 // Deterministic UUID from document ID + chunk index
 // Ensures re-ingestion overwrites existing vectors (upsert semantics)
-func pointID(docID string, chunkIndex int) string {
+func pointID(documentID string, chunkIndex int) string {
     h := sha256.New()
-    h.Write([]byte(fmt.Sprintf("%s:%d", docID, chunkIndex)))
+    h.Write([]byte(fmt.Sprintf("%s:%d", documentID, chunkIndex)))
     sum := h.Sum(nil)
     id, _ := uuid.FromBytes(sum[:16])
     return id.String()
@@ -422,20 +424,20 @@ func pointID(docID string, chunkIndex int) string {
 ```go
 func (s *authService) RefreshTokens(ctx, rawToken string) (*TokenPair, error) {
     hash := sha256hex(rawToken)
-    
+
     token, err := s.db.GetRefreshTokenByHash(ctx, hash)
     if err != nil || token.Revoked || token.ExpiresAt.Before(time.Now()) {
         return nil, ErrInvalidToken
     }
-    
+
     // Rotate: revoke old
     s.db.RevokeRefreshToken(ctx, token.ID)
-    
+
     // Issue new pair
     newRefresh := generateSecureToken(32)
     s.db.InsertRefreshToken(ctx, token.UserID, sha256hex(newRefresh), 7*24*time.Hour)
     newJWT := generateJWT(token.UserID, 15*time.Minute)
-    
+
     return &TokenPair{AccessToken: newJWT, RefreshToken: newRefresh}, nil
 }
 ```
@@ -455,13 +457,13 @@ func JWTAuth(secret string) func(http.Handler) http.Handler {
                 writeError(w, 401, "UNAUTHORIZED", "Missing access token")
                 return
             }
-            
+
             claims, err := validateJWT(cookie.Value, secret)
             if err != nil {
                 writeError(w, 401, "UNAUTHORIZED", "Invalid or expired token")
                 return
             }
-            
+
             // Inject user ID into context
             ctx := context.WithValue(r.Context(), userIDKey, claims.UserID)
             next.ServeHTTP(w, r.WithContext(ctx))
@@ -543,7 +545,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (*models.Use
         FROM users
         WHERE email = $1
     `, email)
-    
+
     var u models.User
     err := row.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.DisplayName, &u.AvatarURL, &u.IsVerified, &u.CreatedAt, &u.UpdatedAt)
     if errors.Is(err, pgx.ErrNoRows) {
@@ -554,6 +556,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (*models.Use
 ```
 
 **Conventions:**
+
 - All queries parameterized (`$1`, `$2`, ...) — no string interpolation
 - Transactions used for multi-step operations (e.g., rotate refresh token, insert user + verification token)
 - Connection pool configured: max 25 connections, 5-minute idle timeout
@@ -580,7 +583,7 @@ type Config struct {
     // Ollama
     OllamaURL       string `env:"OLLAMA_URL" default:"http://localhost:11434"`
     EmbeddingModel  string `env:"EMBEDDING_MODEL" default:"nomic-embed-text:v1.5"`
-    ChatModel       string `env:"CHAT_MODEL" default:"qwen3.5:4b"`
+    ChatModel       string `env:"CHAT_MODEL" default:"llama2.3:3b"`
 
     // Qdrant
     QdrantURL   string `env:"QDRANT_URL" default:"http://localhost:6333"`

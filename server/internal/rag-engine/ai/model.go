@@ -12,3 +12,12 @@ type OllamaChunk struct {
 	Thinking string `json:"thinking"`
 	Done     bool   `json:"done"`
 }
+
+type EmbedBatchRequest struct {
+	Model string   `json:"model"`
+	Input []string `json:"input"`
+}
+
+type EmbedBatchResponse struct {
+	Embeddings [][]float32 `json:"embeddings"`
+}

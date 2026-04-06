@@ -47,7 +47,7 @@ func (repo *Repository) InitCollection() error {
 	err = repo.qdrant.client.CreateCollection(ctx, &qdrant.CreateCollection{
 		CollectionName: repo.qdrant.collectionName,
 		VectorsConfig: qdrant.NewVectorsConfig(&qdrant.VectorParams{
-			Size:     384,
+			Size:     768,
 			Distance: qdrant.Distance_Cosine,
 		}),
 	})
@@ -79,4 +79,76 @@ func (repo *Repository) Create(ctx context.Context, doc *Document) error {
 		&doc.CreatedAt,
 		&doc.UpdatedAt,
 	)
+}
+
+func (repo *Repository) GetDocumentByID(ctx context.Context, id string) (*Document, error) {
+	query := `
+		SELECT id, owner_id, name, original_name, size, mime_type, status, created_at, updated_at
+		FROM documents
+		WHERE id = $1
+	`
+	ctx, cancel := context.WithTimeout(ctx, queryTimeoutDuration)
+	defer cancel()
+
+	var doc Document
+	err := repo.db.QueryRowContext(ctx, query, id).Scan(
+		&doc.ID,
+		&doc.OwnerID,
+		&doc.Name,
+		&doc.OriginalName,
+		&doc.Size,
+		&doc.MimeType,
+		&doc.Status,
+		&doc.CreatedAt,
+		&doc.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &doc, nil
+}
+
+func (repo *Repository) UpdateStatus(ctx context.Context, id string, status string) error {
+	query := `
+		UPDATE documents
+		SET status = $1, updated_at = NOW()
+		WHERE id = $2
+	`
+	ctx, cancel := context.WithTimeout(ctx, queryTimeoutDuration)
+	defer cancel()
+
+	_, err := repo.db.ExecContext(ctx, query, status, id)
+	return err
+}
+
+func (repo *Repository) DeleteDocument(ctx context.Context, id string) error {
+	query := `
+		DELETE FROM documents
+		WHERE id = $1
+	`
+	ctx, cancel := context.WithTimeout(ctx, queryTimeoutDuration)
+	defer cancel()
+
+	_, err := repo.db.ExecContext(ctx, query, id)
+	return err
+}
+
+func (repo *Repository) UpsertPoints(ctx context.Context, points []*qdrant.PointStruct) error {
+	_, err := repo.qdrant.client.Upsert(ctx, &qdrant.UpsertPoints{
+		CollectionName: repo.qdrant.collectionName,
+		Points:         points,
+	})
+	return err
+}
+
+func (repo *Repository) DeletePointsByDocumentID(ctx context.Context, documentID string) error {
+	_, err := repo.qdrant.client.Delete(ctx, &qdrant.DeletePoints{
+		CollectionName: repo.qdrant.collectionName,
+		Points: qdrant.NewPointsSelectorFilter(&qdrant.Filter{
+			Must: []*qdrant.Condition{
+				qdrant.NewMatchKeyword("document_id", documentID),
+			},
+		}),
+	})
+	return err
 }

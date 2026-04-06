@@ -17,3 +17,16 @@ type Document struct {
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
+
+type DocumentChunksContent struct {
+	DocumentID  string          `json:"DocumentID"`
+	TotalChunks int             `json:"TotalChunks"`
+	Chunks      []DocumentChunk `json:"Chunks"`
+}
+
+type DocumentChunk struct {
+	Text      string `json:"Text"`
+	Index     int    `json:"Index"`
+	StartChar int    `json:"StartChar"`
+	EndChar   int    `json:"EndChar"`
+}

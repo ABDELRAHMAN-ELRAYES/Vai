@@ -13,6 +13,7 @@ export interface FileEntry {
   status: FileStatus;
   error: string | null;
   remoteName?: string;
+  documentId?: string;
 }
 
 interface FileCardProps {

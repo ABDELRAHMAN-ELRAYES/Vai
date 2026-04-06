@@ -26,8 +26,8 @@ func Run(app *app.Application, mux *chi.Mux) error {
 	server := &http.Server{
 		Addr:         app.Config.Addr,
 		Handler:      mux,
-		WriteTimeout: 30 * time.Second,
-		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 15 * time.Minute,
+		ReadTimeout:  15 * time.Minute,
 		IdleTimeout:  time.Minute,
 	}
 

@@ -25,7 +25,7 @@ func NewClient(cfg *config.AI, baseURL string) *Client {
 	}
 }
 
-func (c *Client) GenerateStream(ctx context.Context, prompt string) (<-chan string, <-chan error) {
+func (client *Client) GenerateStream(ctx context.Context, prompt string) (<-chan string, <-chan error) {
 	// Stream Tokens view channel
 	tokenStream := make(chan string)
 	errStream := make(chan error, 1)
@@ -35,7 +35,7 @@ func (c *Client) GenerateStream(ctx context.Context, prompt string) (<-chan stri
 		defer close(errStream)
 
 		reqBody := GenerateRequest{
-			Model:  c.cfg.Name,
+			Model:  client.cfg.Name,
 			Prompt: prompt,
 			Stream: true,
 		}
@@ -50,7 +50,7 @@ func (c *Client) GenerateStream(ctx context.Context, prompt string) (<-chan stri
 		req, err := http.NewRequestWithContext(
 			ctx,
 			"POST",
-			c.baseURL+"/api/generate",
+			client.baseURL+"/api/generate",
 			bytes.NewBuffer(data),
 		)
 
@@ -66,7 +66,7 @@ func (c *Client) GenerateStream(ctx context.Context, prompt string) (<-chan stri
 		// 3. waits for the server to respond
 		// 4. return the response metadata
 		// 5. provide a Body stream to the response to read the response as tokens not waiting for the full response to finish
-		resp, err := c.http.Do(req)
+		resp, err := client.http.Do(req)
 		if err != nil {
 			errStream <- err
 			return
@@ -106,4 +106,46 @@ func (c *Client) GenerateStream(ctx context.Context, prompt string) (<-chan stri
 	}()
 
 	return tokenStream, errStream
+}
+
+func (client *Client) EmbedBatch(ctx context.Context, input []string) ([][]float32, error) {
+	reqBody := EmbedBatchRequest{
+		Model: client.cfg.EmBeddingModel,
+		Input: input,
+	}
+
+	data, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		"POST",
+		client.baseURL+"/api/embed",
+		bytes.NewBuffer(data),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var resBody EmbedBatchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&resBody); err != nil {
+		return nil, err
+	}
+
+	return resBody.Embeddings, nil
 }

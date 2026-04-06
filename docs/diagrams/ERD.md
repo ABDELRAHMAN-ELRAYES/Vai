@@ -1,4 +1,5 @@
 # Entity-Relationship Diagram (ERD)
+
 ## Vai — PostgreSQL Database Schema
 
 **Version:** 1.0  
@@ -246,14 +247,14 @@ Example:         user_550e8400-e29b-41d4-a716-446655440000
 
 ### Point Structure
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | UUID string | Deterministic: `sha256(docID + ":" + chunkIndex)[:16]` as UUID |
-| `vector` | `[]float32` (768 dims) | Embedding from `nomic-embed-text:v1.5` |
-| `payload.document_id` | string | References `documents.id` in PostgreSQL |
-| `payload.chunk_text` | string | Raw text of this chunk |
-| `payload.chunk_index` | int | Zero-based position within the document |
-| `payload.source` | string | Original filename |
+| Field                 | Type                   | Description                                                         |
+| --------------------- | ---------------------- | ------------------------------------------------------------------- |
+| `id`                  | UUID string            | Deterministic: `sha256(documentID + ":" + chunkIndex)[:16]` as UUID |
+| `vector`              | `[]float32` (768 dims) | Embedding from `nomic-embed-text:v1.5`                              |
+| `payload.document_id` | string                 | References `documents.id` in PostgreSQL                             |
+| `payload.chunk_text`  | string                 | Raw text of this chunk                                              |
+| `payload.chunk_index` | int                    | Zero-based position within the document                             |
+| `payload.source`      | string                 | Original filename                                                   |
 
 ### Collection Config
 
@@ -278,13 +279,13 @@ This enables efficient filtering: `{ "must": [{ "key": "document_id", "match": {
 
 ## Entity Relationships Summary
 
-| Relationship | Type | Cascade |
-|-------------|------|---------|
-| `users` → `oauth_accounts` | One-to-Many | DELETE CASCADE |
-| `users` → `refresh_tokens` | One-to-Many | DELETE CASCADE |
-| `users` → `verification_tokens` | One-to-Many | DELETE CASCADE |
-| `users` → `password_reset_tokens` | One-to-Many | DELETE CASCADE |
-| `users` → `documents` | One-to-Many | DELETE CASCADE |
-| `users` → `chat_sessions` | One-to-Many | DELETE CASCADE |
-| `documents` → `chat_sessions` | One-to-Many (optional FK) | SET NULL |
-| `chat_sessions` → `chat_messages` | One-to-Many | DELETE CASCADE |
+| Relationship                      | Type                      | Cascade        |
+| --------------------------------- | ------------------------- | -------------- |
+| `users` → `oauth_accounts`        | One-to-Many               | DELETE CASCADE |
+| `users` → `refresh_tokens`        | One-to-Many               | DELETE CASCADE |
+| `users` → `verification_tokens`   | One-to-Many               | DELETE CASCADE |
+| `users` → `password_reset_tokens` | One-to-Many               | DELETE CASCADE |
+| `users` → `documents`             | One-to-Many               | DELETE CASCADE |
+| `users` → `chat_sessions`         | One-to-Many               | DELETE CASCADE |
+| `documents` → `chat_sessions`     | One-to-Many (optional FK) | SET NULL       |
+| `chat_sessions` → `chat_messages` | One-to-Many               | DELETE CASCADE |

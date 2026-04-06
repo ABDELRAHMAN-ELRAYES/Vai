@@ -3,7 +3,7 @@ import { parseResponseError, NetworkError, TimeoutError } from "./errors";
 import type { RequestOptions } from "@/types/api/request";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
-const TIMEOUT_MS = 30_000;
+const TIMEOUT_MS = 300_000;
 
 async function request<T>(
   path: string,

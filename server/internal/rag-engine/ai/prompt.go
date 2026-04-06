@@ -14,8 +14,10 @@ var FS embed.FS
 var prompts *template.Template
 
 const (
-	ChatPrompt  = "chat"
-	TitlePrompt = "title"
+	ChatPrompt          = "chat"
+	TitlePrompt         = "title"
+	EmbedDocumentPrompt = "embed_document"
+	EmbedQueryPrompt    = "embed_query"
 )
 
 // Parses all templates at once

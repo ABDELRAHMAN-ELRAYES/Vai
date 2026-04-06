@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/db"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/documents"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/users"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/rag-engine/ai"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/validator"
@@ -22,24 +23,35 @@ type Service struct {
 	aiService   *ai.Service
 	logger      *zap.SugaredLogger
 	userService *users.Service
+	docService  *documents.Service
 }
 
-func NewService(db *sql.DB, repo *Repository, aiService *ai.Service, logger *zap.SugaredLogger, userService *users.Service) *Service {
+func NewService(db *sql.DB, repo *Repository, aiService *ai.Service, logger *zap.SugaredLogger, userService *users.Service, docService *documents.Service) *Service {
 	return &Service{
 		db:          db,
 		repo:        repo,
 		aiService:   aiService,
 		logger:      logger,
 		userService: userService,
+		docService:  docService,
 	}
 }
-func (service *Service) StartConversation(ctx context.Context, payload StartConversationPayload) (*Conversation, <-chan string, <-chan error, error) {
+func (service *Service) StartConversation(ctx context.Context, payload StartConversationPayload, chunksDir string) (*Conversation, <-chan string, <-chan error, error) {
 	// Validate request body
 	if err := validator.Validate.Struct(payload); err != nil {
 		return nil, nil, nil, apierror.ErrBadRequest
 	}
 
 	conv := &Conversation{}
+
+	// Embed the document if provided with the message
+	if payload.DocumentID != "" {
+		err := service.docService.EmbedDocument(ctx, payload.DocumentID, chunksDir)
+		if err != nil {
+			service.logger.Errorf("EmbedDocument failed: %s", err)
+			return nil, nil, nil, err
+		}
+	}
 
 	err := db.WithTx(service.db, ctx, func(tx *sql.Tx) error {
 		repo := service.repo.WithTx(tx)
@@ -205,7 +217,7 @@ func (service *Service) GetConversation(ctx context.Context, id string) (*Conver
 	conv.Messages = messages
 	return conv, nil
 }
-func (service *Service) SendMessage(ctx context.Context, payload SendMessagePayload) (<-chan string, <-chan error, error) {
+func (service *Service) SendMessage(ctx context.Context, payload SendMessagePayload, chunksDir string) (<-chan string, <-chan error, error) {
 	// 1. Validate request body
 	if err := validator.Validate.Struct(payload); err != nil {
 		return nil, nil, apierror.ErrBadRequest
@@ -222,7 +234,16 @@ func (service *Service) SendMessage(ctx context.Context, payload SendMessagePayl
 		return nil, nil, apierror.ErrUnauthorized
 	}
 
-	// 4. Create the user message
+	// 4. Embed the document if provided with the message
+	if payload.DocumentID != "" {
+		err := service.docService.EmbedDocument(ctx, payload.DocumentID, chunksDir)
+		if err != nil {
+			service.logger.Errorf("EmbedDocument failed: %s", err)
+			return nil, nil, err
+		}
+	}
+
+	// 5. Create the user message
 	userMsg := &Message{
 		ConversationID: payload.ConversationID,
 		Content:        payload.Message,
@@ -233,13 +254,13 @@ func (service *Service) SendMessage(ctx context.Context, payload SendMessagePayl
 		return nil, nil, err
 	}
 
-	// 4. Fetch previous messages
+	// 6. Fetch previous messages
 	prevMessages, err := service.repo.GetMessagesByConversationID(ctx, payload.ConversationID)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// 5. Render the prompt with history (exclude the last user message)
+	// 7. Render the prompt with history (exclude the last user message)
 	history := make([]Message, 0, len(prevMessages))
 	for _, m := range prevMessages {
 		if m.ID == userMsg.ID {
@@ -257,11 +278,11 @@ func (service *Service) SendMessage(ctx context.Context, payload SendMessagePayl
 		return nil, nil, err
 	}
 
-	// 6. Send to AI model and start streaming
+	// 8. Send to AI model and start streaming
 	tokenChan, errChan := service.aiService.Generate(ctx, chatPrompt)
 	replyChan, tokenStream, errStream := service.aiService.CollectTokens(tokenChan, errChan)
 
-	// 7. Save the AI reply
+	// 9. Save the AI reply
 	go service.saveReply(context.Background(), payload.ConversationID, replyChan)
 
 	return tokenStream, errStream, nil

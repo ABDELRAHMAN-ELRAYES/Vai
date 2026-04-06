@@ -1,4 +1,5 @@
 # Data Flow Diagram (DFD)
+
 ## Vai — How Data Moves Through the System
 
 **Version:** 1.1  
@@ -9,6 +10,7 @@
 ## DFD Level 0 — Context Diagram
 
 The system in its environment. Shows only external actors and the top-level process.
+
 ```mermaid
 flowchart TD
     %% Architecture Boundaries
@@ -26,10 +28,10 @@ flowchart TD
     end
 
     %% --- DATA & CONTROL FLOW ---
-    
+
     %% Client Interactions
     User <==>|"Requests: Docs, Queries, Credentials\nResponses: SSE Answers, Tokens, Metadata"| Vai
-    
+
     %% External API Interactions
     Vai <-->|"Req: OAuth Code Exchange\nRes: ID Token & Profile"| Google
     Vai -.->|"Send: Auth & Welcome Emails\nRecv: Delivery Confirmation"| SMTP
@@ -38,13 +40,14 @@ flowchart TD
     style Core fill:#ffffff,stroke:#333,stroke-width:2px
     style Clients fill:#e1f5fe,stroke:#01579b,stroke-width:2px,stroke-dasharray: 5 5
     style External fill:#fff4dd,stroke:#d4a017,stroke-width:2px,stroke-dasharray: 5 5
-    
+
     classDef default fill:#ffffff,stroke:#333,stroke-width:1px
 ```
 
 ---
 
 ## DFD Level 1 — Main Processes
+
 ```mermaid
 flowchart TD
     %% User at the very top
@@ -94,10 +97,10 @@ flowchart TD
     P2 ==>|"6. Write raw file"| FS_RAW
     P2 ==>|"7. Write chunks"| FS_TMP
     P2 ==>|"8. INSERT (status: draft)"| DB
-    P2 --->|"9. 202 Accepted\n(docID, status: draft)"| User
+    P2 --->|"9. 202 Accepted\n(documentID, status: draft)"| User
 
     %% P3 PATH — Message send: deferred embed + RAG
-    User --->|"10. Query + docID"| P3
+    User --->|"10. Query + documentID"| P3
     P3 <-->|"11. Load chunks\n(if status=draft)"| FS_TMP
     P3 <-->|"12. Embed chunks\n+ question"| OL_EMB
     OL_EMB --->|"13. []float32 (768)"| P3
@@ -127,6 +130,7 @@ flowchart TD
 ---
 
 ## DFD Level 2 — Document Ingestion & Message Send (P2 Expanded)
+
 ```mermaid
 flowchart TD
     subgraph App [Vai Backend Service: Ingestion Pipeline]
@@ -141,7 +145,7 @@ flowchart TD
         P2_4["P2.4: Save chunks\nto temp storage"]
         P2_5["P2.5: Insert metadata\n(status: draft)"]
 
-        End(["Response\n202 Accepted\n(doc_id, status: draft)"])
+        End(["Response\n202 Accepted\n(document_id, status: draft)"])
     end
 
     subgraph Deferred [Message Send Phase — Deferred]
@@ -215,11 +219,12 @@ flowchart TD
 ---
 
 ## DFD Level 2 — RAG Query (P3 Expanded)
+
 ```mermaid
 flowchart TD
     subgraph App [Vai Backend Service: RAG Engine]
         direction TB
-        Start(["User Question\n(+ userID, docID, optional sessionID)"])
+        Start(["User Question\n(+ userID, documentID, optional sessionID)"])
 
         P3_0{"P3.0: Document\nStatus Check"}
         P3_0A["P3.0A: Load chunks\nfrom temp storage"]
@@ -240,7 +245,7 @@ flowchart TD
 
     subgraph AI [Inference: Ollama]
         OL_E["/api/embeddings\n(nomic-embed-text)"]
-        OL_C["/api/chat (stream)\n(qwen3.5:4b)"]
+        OL_C["/api/chat (stream)\n(llama2.3:3b)"]
     end
 
     subgraph Data [Persistence Layer]
@@ -278,7 +283,7 @@ flowchart TD
     P3_1 <-->|"Read/Write Session"| DB
     P3_2 ==>|"Insert Message\n(role=user)"| DB
     P3_3 <-->|"1. Question text\n2. []float32 (768)"| OL_E
-    P3_4 <-->|"Vector + Filter\nTop-K {text, score, docID}"| QD
+    P3_4 <-->|"Vector + Filter\nTop-K {text, score, documentID}"| QD
     P3_6 <-->|"System prompt + context + question\nYields Tokens"| OL_C
     P3_7 ==>|"Insert Message\n(role=assistant)"| DB
 
@@ -295,6 +300,7 @@ flowchart TD
 ---
 
 ## DFD Level 2 — Authentication (P1 Expanded)
+
 ```mermaid
 flowchart TD
     Email_Login(["📧 Email + Password"])
@@ -345,37 +351,37 @@ flowchart TD
 
 ## Data Stores Summary
 
-| Store | ID | Read By | Written By | Purpose |
-|-------|----|---------|-----------|---------|
-| PostgreSQL | D1 | All services | AuthService, ChatService, UserService, RAGPipeline | Relational/transactional data including document status lifecycle |
-| Qdrant | D2 | RAGPipeline (P3) | RAGPipeline deferred phase (P3.0C) | Vector similarity search — only written on first message send, not on upload |
-| Filesystem raw/ | D4a | RAGPipeline worker | Upload handler (P2) | Permanent storage of original uploaded files |
-| Filesystem chunks/ | D4b | RAGPipeline deferred phase (P3.0A) | Upload handler (P2) | Temporary chunk storage for draft documents — deleted after embedding or after 24h |
-| Cookie (client-side) | D5 | All requests | Auth handlers | JWT access + refresh tokens |
+| Store                | ID  | Read By                            | Written By                                         | Purpose                                                                            |
+| -------------------- | --- | ---------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| PostgreSQL           | D1  | All services                       | AuthService, ChatService, UserService, RAGPipeline | Relational/transactional data including document status lifecycle                  |
+| Qdrant               | D2  | RAGPipeline (P3)                   | RAGPipeline deferred phase (P3.0C)                 | Vector similarity search — only written on first message send, not on upload       |
+| Filesystem raw/      | D4a | RAGPipeline worker                 | Upload handler (P2)                                | Permanent storage of original uploaded files                                       |
+| Filesystem chunks/   | D4b | RAGPipeline deferred phase (P3.0A) | Upload handler (P2)                                | Temporary chunk storage for draft documents — deleted after embedding or after 24h |
+| Cookie (client-side) | D5  | All requests                       | Auth handlers                                      | JWT access + refresh tokens                                                        |
 
 ---
 
 ## Data Stores — Document Status Lifecycle
 
-| Status | Set By | Meaning |
-|--------|--------|---------|
-| `draft` | Upload handler (P2.5) | File saved, chunks stored, not yet embedded |
-| `processing` | RAG engine (P3.0) | Deferred embedding phase in progress |
-| `ready` | RAG engine (P3.0D) | Embedded and searchable in Qdrant |
-| `failed` | RAG engine (P3.0) | Embedding failed, eligible for retry |
+| Status       | Set By                | Meaning                                     |
+| ------------ | --------------------- | ------------------------------------------- |
+| `draft`      | Upload handler (P2.5) | File saved, chunks stored, not yet embedded |
+| `processing` | RAG engine (P3.0)     | Deferred embedding phase in progress        |
+| `ready`      | RAG engine (P3.0D)    | Embedded and searchable in Qdrant           |
+| `failed`     | RAG engine (P3.0)     | Embedding failed, eligible for retry        |
 
 ---
 
 ## Data Classification
 
-| Data Element | Classification | Storage | Retention |
-|-------------|---------------|---------|-----------|
-| User email | PII | PostgreSQL (plaintext) | Until account deletion |
-| Password hash | Sensitive | PostgreSQL | Until account deletion |
-| OAuth tokens | Sensitive | PostgreSQL (encrypt recommended) | Until expired/revoked |
-| Document text (raw) | Confidential | Filesystem raw/ | Until document deleted by user |
-| Document chunks | Confidential | Filesystem chunks/ | Until first message send (then deleted after embedding) or 24h draft expiry |
-| Vector embeddings | Confidential | Qdrant payloads | Until document deleted |
-| Chat messages | Confidential | PostgreSQL | Until session/account deleted |
-| JWT claims | Internal | HTTP cookie (signed) | 15-minute TTL |
-| Refresh tokens | Sensitive | PostgreSQL (hashed) | 7-day TTL or revocation |
+| Data Element        | Classification | Storage                          | Retention                                                                   |
+| ------------------- | -------------- | -------------------------------- | --------------------------------------------------------------------------- |
+| User email          | PII            | PostgreSQL (plaintext)           | Until account deletion                                                      |
+| Password hash       | Sensitive      | PostgreSQL                       | Until account deletion                                                      |
+| OAuth tokens        | Sensitive      | PostgreSQL (encrypt recommended) | Until expired/revoked                                                       |
+| Document text (raw) | Confidential   | Filesystem raw/                  | Until document deleted by user                                              |
+| Document chunks     | Confidential   | Filesystem chunks/               | Until first message send (then deleted after embedding) or 24h draft expiry |
+| Vector embeddings   | Confidential   | Qdrant payloads                  | Until document deleted                                                      |
+| Chat messages       | Confidential   | PostgreSQL                       | Until session/account deleted                                               |
+| JWT claims          | Internal       | HTTP cookie (signed)             | 15-minute TTL                                                               |
+| Refresh tokens      | Sensitive      | PostgreSQL (hashed)              | 7-day TTL or revocation                                                     |
