@@ -152,3 +152,27 @@ func (repo *Repository) DeletePointsByDocumentID(ctx context.Context, documentID
 	})
 	return err
 }
+
+func (repo *Repository) SearchPoints(ctx context.Context, vector []float32, documentID string, topK uint64) ([]*qdrant.ScoredPoint, error) {
+	var filter *qdrant.Filter
+	if documentID != "" {
+		filter = &qdrant.Filter{
+			Must: []*qdrant.Condition{
+				qdrant.NewMatchKeyword("document_id", documentID),
+			},
+		}
+	}
+
+	res, err := repo.qdrant.client.Query(ctx, &qdrant.QueryPoints{
+		CollectionName: repo.qdrant.collectionName,
+		Query:          qdrant.NewQueryNearest(qdrant.NewVectorInputDense(vector)),
+		Limit:          qdrant.PtrOf(topK),
+		Filter:         filter,
+		WithPayload:    qdrant.NewWithPayload(true),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return res, nil
+}

@@ -84,25 +84,47 @@ func (service *Service) StartConversation(ctx context.Context, payload StartConv
 	// ! Error, Context Done
 	// go service.handleTitleGeneration(conv.ID, payload.Message)
 
-	// 4. Render the prompt
+	// 4. Perform semantic search if DocumentID is provided
+	var contextStr string
+	var documentName string
+	if payload.DocumentID != "" {
+		// Fetch document data
+		doc, err := service.docService.GetDocument(ctx, payload.DocumentID)
+		if err != nil {
+			service.logger.Errorf("GetDocument failed: %s", err)
+		}
+		documentName = doc.OriginalName
+
+		chunks, err := service.docService.Search(ctx, payload.Message, payload.DocumentID, 5)
+		if err != nil {
+			service.logger.Errorf("Search failed: %s", err)
+		}
+		contextStr = strings.Join(chunks, "\n\n")
+
+	}
+
+	// 5. Render the prompt
 	chatPromptData := &ChatPromptData{
-		Messages:    []Message{},
-		UserMessage: payload.Message,
+		Messages:     []Message{},
+		UserMessage:  payload.Message,
+		Context:      contextStr,
+		DocumentName: documentName,
 	}
 	chatPrompt, err := ai.RenderPrompt(ai.ChatPrompt, chatPromptData)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	// 5. send the message to LLM
+
+	// 6. send the message to LLM
 	tokenChan, errChan := service.aiService.Generate(ctx, chatPrompt)
 
-	// 6. collect the strear tokens
+	// 7. collect the strear tokens
 	replyChan, tokenStream, errStream := service.aiService.CollectTokens(tokenChan, errChan)
 
-	// 7. save the response to the DB
+	// 8. save the response to the DB
 	go service.saveReply(context.Background(), conv.ID, replyChan)
 
-	// 8. stream the response
+	// 9. stream the response
 	return conv, tokenStream, errStream, nil
 }
 
@@ -113,7 +135,7 @@ func (service *Service) handleTitleGeneration(convID string, msg string) {
 
 	title, err := service.generateTitle(ctx, msg)
 	if err != nil {
-		service.logger.Errorf("generateTitle failed: %s — using fallback", err)
+		service.logger.Errorf("generateTitle failed: %s using fallback", err)
 		title = utils.TruncateStr(msg, 50)
 	}
 	updateConversationPayload := &UpdateConversationPayload{
@@ -260,7 +282,25 @@ func (service *Service) SendMessage(ctx context.Context, payload SendMessagePayl
 		return nil, nil, err
 	}
 
-	// 7. Render the prompt with history (exclude the last user message)
+	// 7. Perform semantic search if DocumentID is provided
+	var contextStr string
+	var documentName string
+	if payload.DocumentID != "" {
+		// Fetch document data
+		doc, err := service.docService.GetDocument(ctx, payload.DocumentID)
+		if err != nil {
+			service.logger.Errorf("GetDocument failed: %s", err)
+		}
+		documentName = doc.OriginalName
+
+		chunks, err := service.docService.Search(ctx, payload.Message, payload.DocumentID, 5)
+		if err != nil {
+			service.logger.Errorf("Search failed: %s", err)
+		}
+		contextStr = strings.Join(chunks, "\n\n")
+	}
+
+	// 8. Render the prompt with history (exclude the last user message)
 	history := make([]Message, 0, len(prevMessages))
 	for _, m := range prevMessages {
 		if m.ID == userMsg.ID {
@@ -270,19 +310,21 @@ func (service *Service) SendMessage(ctx context.Context, payload SendMessagePayl
 	}
 
 	chatPromptData := &ChatPromptData{
-		Messages:    history,
-		UserMessage: payload.Message,
+		Messages:     history,
+		UserMessage:  payload.Message,
+		Context:      contextStr,
+		DocumentName: documentName,
 	}
 	chatPrompt, err := ai.RenderPrompt(ai.ChatPrompt, chatPromptData)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// 8. Send to AI model and start streaming
+	// 9. Send to AI model and start streaming
 	tokenChan, errChan := service.aiService.Generate(ctx, chatPrompt)
 	replyChan, tokenStream, errStream := service.aiService.CollectTokens(tokenChan, errChan)
 
-	// 9. Save the AI reply
+	// 10. Save the AI reply
 	go service.saveReply(context.Background(), payload.ConversationID, replyChan)
 
 	return tokenStream, errStream, nil

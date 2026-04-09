@@ -133,7 +133,7 @@ export const ChatInput = memo(
               ? {
                   ...f,
                   status: "done" as const,
-                  doccuId: response.data?.id,
+                  documentId: response.data?.id,
                 }
               : f,
           ),

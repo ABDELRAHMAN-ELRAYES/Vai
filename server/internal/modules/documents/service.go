@@ -30,6 +30,10 @@ func NewService(repo *Repository, aiService *ai.Service) *Service {
 	}
 }
 
+func (service *Service) GetDocument(ctx context.Context, id string) (*Document, error) {
+	return service.repo.GetDocumentByID(ctx, id)
+}
+
 func (service *Service) CreateDocument(ctx context.Context, ownerID uuid.UUID, uploadedFile *sharedDocuments.UploadedFile) (*Document, error) {
 	doc := &Document{
 		OwnerID:      ownerID,
@@ -149,7 +153,6 @@ func (service *Service) EmbedDocument(ctx context.Context, documentID string, ch
 		}
 		prompt, err := ai.RenderPrompt(ai.EmbedDocumentPrompt, promptData)
 		if err != nil {
-			fmt.Printf("failed to render prompt for documentID %s: %v\n", documentID, err)
 			_ = service.repo.UpdateStatus(ctx, documentID, "failed")
 			return apierror.ErrEmbedChunksFailed
 		}
@@ -162,7 +165,6 @@ func (service *Service) EmbedDocument(ctx context.Context, documentID string, ch
 	// Embed the file chunks
 	embeddings, err := service.aiService.EmbedBatch(ctx, chunksModelInput)
 	if err != nil {
-		fmt.Printf("EmbedBatch failed for documentID %s: %v\n", documentID, err)
 		_ = service.repo.UpdateStatus(ctx, documentID, "failed")
 		return apierror.ErrEmbedChunksFailed
 	}
@@ -197,4 +199,42 @@ func (service *Service) EmbedDocument(ctx context.Context, documentID string, ch
 
 	// Update status
 	return service.repo.UpdateStatus(ctx, documentID, "ready")
+}
+
+func (service *Service) Search(ctx context.Context, query string, documentID string, topK uint64) ([]string, error) {
+	// 1. Render the search query prompt
+	promptData := &EmbedPromptData{
+		Text: query,
+	}
+	prompt, err := ai.RenderPrompt(ai.EmbedQueryPrompt, promptData)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. Embed the query
+	embeddings, err := service.aiService.EmbedBatch(ctx, []string{prompt})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(embeddings) == 0 {
+		return nil, fmt.Errorf("no embeddings returned")
+	}
+
+	// 3. Search in Qdrant
+	points, err := service.repo.SearchPoints(ctx, embeddings[0], documentID, topK)
+	if err != nil {
+		return nil, err
+	}
+
+	// 4. Extract text from payloads
+	var results []string
+	for _, point := range points {
+		if text, ok := point.Payload["text"]; ok {
+			content := text.GetStringValue()
+			results = append(results, content)
+		}
+	}
+
+	return results, nil
 }

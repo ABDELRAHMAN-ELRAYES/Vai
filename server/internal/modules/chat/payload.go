@@ -25,8 +25,10 @@ type UpdateConversationPayload struct {
 	Title          string
 }
 type ChatPromptData struct {
-	Messages    []Message
-	UserMessage string
+	Messages     []Message
+	UserMessage  string
+	Context      string
+	DocumentName string
 }
 
 type TitlePromptData struct {
