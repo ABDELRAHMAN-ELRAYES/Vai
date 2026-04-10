@@ -3,7 +3,7 @@
 ## Vai — Component Interaction Over Time
 
 **Version:** 1.0  
-**Date:** June 2025
+**Date:** April 2026
 
 ---
 
@@ -18,39 +18,37 @@ sequenceDiagram
     participant ES as EmailService
     participant SMTP as SMTP Server
 
-    C->>H: POST /auth/register {email, password, display_name}
-    H->>H: Validate input (email format, password strength)
+    C->>H: POST /api/v1/auth/register {email, password, first_name, last_name}
+    H->>H: Validate input
     alt Validation fails
-        H-->>C: 422 Unprocessable Entity {field errors}
+        H-->>C: 400 Bad Request {error: message}
     end
-    H->>AS: Register(email, password, displayName)
+    H->>AS: Register(first_name, last_name, email, password)
     AS->>DB: SELECT * FROM users WHERE email = ?
     DB-->>AS: (no rows)
-    AS->>AS: bcrypt.Hash(password, cost=12)
-    AS->>DB: INSERT INTO users (id, email, password_hash, display_name)
+    AS->>AS: Hash Password (argon2/bcrypt)
+    AS->>DB: INSERT INTO users (email, password, first_name, last_name, is_active: false)
     DB-->>AS: user record
-    AS->>AS: GenerateHMACToken(userID, secret)
-    AS->>DB: INSERT INTO verification_tokens (user_id, token_hash, expires_at=+24h)
+    AS->>AS: Generate Activation Token
+    AS->>DB: INSERT INTO verification_tokens (user_id, token, expired_at)
     DB-->>AS: ok
-    AS->>ES: SendVerification(email, displayName, token)
-    ES->>SMTP: Send HTML email with verification link
+    AS->>ES: SendWelcome(email, first_name, token)
+    ES->>SMTP: Send activation email
     SMTP-->>ES: accepted
-    AS-->>H: User{id, email, display_name, is_verified=false}
-    H-->>C: 201 Created {id, email, display_name, is_verified: false}
+    AS-->>H: User record
+    H-->>C: 201 Created {user: {id, email, ...}, token}
 
-    Note over C,SMTP: Later — user clicks verification link in email
+    Note over C,SMTP: Later — user activates account
 
-    C->>H: GET /auth/verify?token=<hmac_token>
-    H->>AS: VerifyEmail(token)
-    AS->>AS: HMAC.Verify(token, secret) — validate signature
-    AS->>DB: SELECT * FROM verification_tokens WHERE token_hash = sha256(token)
+    C->>H: POST /api/v1/auth/activate/<token>
+    H->>AS: ActivateUser(token)
+    AS->>DB: SELECT * FROM verification_tokens WHERE token = ?
     DB-->>AS: token record
-    AS->>AS: Check: not used, not expired
-    AS->>DB: UPDATE users SET is_verified = TRUE WHERE id = token.user_id
-    AS->>DB: UPDATE verification_tokens SET used = TRUE WHERE id = token.id
+    AS->>AS: Check: not expired
+    AS->>DB: UPDATE users SET is_active = TRUE WHERE id = token.user_id
     DB-->>AS: ok
     AS-->>H: nil
-    H-->>C: 200 OK {message: "Email verified successfully"}
+    H-->>C: 204 No Content
 ```
 
 ---
@@ -64,65 +62,29 @@ sequenceDiagram
     participant AS as AuthService
     participant DB as PostgreSQL
 
-    C->>H: POST /auth/login {email, password}
-    H->>AS: Login(email, password)
+    C->>H: POST /api/v1/auth/login {email, password}
+    H->>AS: Authenticate(email, password)
     AS->>DB: SELECT * FROM users WHERE email = ?
     alt User not found
         DB-->>AS: (no rows)
         AS-->>H: ErrInvalidCredentials
-        H-->>C: 401 Unauthorized {code: INVALID_CREDENTIALS}
+        H-->>C: 401 Unauthorized {error: "unauthorized"}
     end
     DB-->>AS: user record
-    AS->>AS: bcrypt.Compare(password, user.password_hash)
+    AS->>AS: Compare Hash
     alt Password mismatch
         AS-->>H: ErrInvalidCredentials
         H-->>C: 401 Unauthorized
     end
-    AS->>AS: GenerateJWT(userID, email, isVerified, TTL=15min)
-    AS->>AS: GenerateRefreshToken() — crypto/rand 32 bytes
-    AS->>DB: INSERT INTO refresh_tokens (user_id, sha256(token), expires_at=+7d)
-    DB-->>AS: ok
-    AS-->>H: TokenPair{accessToken, refreshToken}
-    H->>H: Set access_token cookie (HttpOnly, Secure, Max-Age=900)
-    H->>H: Set refresh_token cookie (HttpOnly, Secure, Path=/auth/refresh)
-    H-->>C: 200 OK {id, email, display_name}
+    AS->>AS: GenerateJWT(userID, TTL=90d)
+    AS-->>H: User + JWT
+    H->>H: Set access_token cookie (HttpOnly, SameSite=Lax, Max-Age=90d)
+    H-->>C: 200 OK {user: {id, email, ...}, token}
 ```
 
 ---
 
-## SD-03: Token Refresh
-
-```mermaid
-sequenceDiagram
-    participant C as Client
-    participant MW as JWT Middleware
-    participant H as API Handler
-    participant AS as AuthService
-    participant DB as PostgreSQL
-
-    C->>MW: GET /some-protected-route (expired access_token cookie)
-    MW->>MW: Parse JWT → token expired
-    MW-->>C: 401 Unauthorized
-
-    C->>H: POST /auth/refresh (refresh_token cookie auto-sent)
-    H->>AS: RefreshTokens(rawRefreshToken)
-    AS->>AS: hash = SHA256(rawRefreshToken)
-    AS->>DB: SELECT * FROM refresh_tokens WHERE token_hash = hash
-    DB-->>AS: token record
-    AS->>AS: Check: not revoked, not expired
-    AS->>DB: UPDATE refresh_tokens SET revoked = TRUE WHERE id = token.id
-    AS->>AS: GenerateJWT(userID, 15min)
-    AS->>AS: GenerateNewRefreshToken() — new 32-byte random
-    AS->>DB: INSERT INTO refresh_tokens (user_id, sha256(newToken), expires_at=+7d)
-    DB-->>AS: ok
-    AS-->>H: TokenPair{newAccessToken, newRefreshToken}
-    H->>H: Set new cookies (both tokens)
-    H-->>C: 200 OK {id, email, display_name}
-```
-
----
-
-## SD-04: Google OAuth 2.0 Flow
+## SD-04: Google OAuth 2.0 Flow (Planned)
 
 ```mermaid
 sequenceDiagram
@@ -133,48 +95,30 @@ sequenceDiagram
     participant DB as PostgreSQL
     participant SMTP as EmailService
 
-    C->>H: GET /auth/google
+    C->>H: GET /api/v1/auth/google/login
     H->>AS: GenerateOAuthState()
-    AS-->>H: state (random string)
-    H->>H: Set-Cookie oauth_state=<state> (HttpOnly, Max-Age=300)
-    H-->>C: 302 Redirect -> accounts.google.com/o/oauth2/auth?...
+    AS-->>H: state
+    H->>H: Set-Cookie oauth_state
+    H-->>C: 302 Redirect -> google.com
 
-    C->>G: (User authenticates at Google, grants consent)
-    G-->>C: 302 Redirect -> /auth/google/callback?code=<auth_code>&state=<state>
+    C->>G: (User authenticates)
+    G-->>C: 302 Redirect -> /api/v1/auth/google/callback?code=...
 
-    C->>H: GET /auth/google/callback?code=...&state=...
-    H->>H: Read oauth_state cookie, compare to state param
-
-    alt State mismatch (CSRF)
-        H-->>C: 400 Bad Request {code: INVALID_STATE}
-    end
-
-    H->>AS: OAuthCallback("google", code, state)
-    AS->>G: POST /token {code, client_id, client_secret, redirect_uri}
-    G-->>AS: {access_token, id_token, refresh_token}
-
-    AS->>AS: ValidateIDToken(id_token) — verify signature, iss, aud, exp
-    AS->>AS: Extract claims: email, name, picture, sub (Google user ID)
-
-    AS->>DB: SELECT * FROM oauth_accounts WHERE provider='google' AND provider_user_id=sub
-
+    C->>H: GET /api/v1/auth/google/callback?code=...
+    H->>AS: OAuthCallback(code)
+    AS->>G: Token Exchange
+    G-->>AS: {access_token, id_token}
+    AS->>AS: Validate ID Token
+    AS->>DB: SELECT * FROM users WHERE email = ?
     alt New user
-        DB-->>AS: (no rows)
-        AS->>DB: INSERT INTO users (email, display_name, avatar_url, is_verified=TRUE)
-        AS->>DB: INSERT INTO oauth_accounts (user_id, provider, provider_user_id)
-        AS-)SMTP: Trigger Welcome Email (Async)
-    else Existing user
-        DB-->>AS: oauth_account record
-        AS->>DB: UPDATE users SET avatar_url = ? (refresh from Google)
+        AS->>DB: INSERT INTO users (email, first_name, last_name, is_active: true)
+        AS-)SMTP: Trigger Welcome Email
     end
 
-    AS->>AS: GenerateJWT(userID, 15min)
-    AS->>AS: GenerateRefreshToken()
-    AS->>DB: INSERT INTO refresh_tokens
-
-    AS-->>H: TokenPair
-    H->>H: Set access_token + refresh_token cookies
-    H-->>C: 302 Redirect → / (application home)
+    AS->>AS: GenerateJWT(userID, 90d)
+    AS-->>H: JWT
+    H->>H: Set access_token cookie
+    H-->>C: 302 Redirect → / (home)
 ```
 
 ---
@@ -184,69 +128,53 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant C as Client
-    participant MW as JWT Middleware
+    participant MW as Auth Middleware
     participant H as Handler
-    participant RP as RAGPipeline
+    participant S as DocumentService
     participant FS as Filesystem
     participant CH as Chunker
     participant DB as PostgreSQL
 
-    Note over C,DB: ── Phase 1: Upload (synchronous, client waits) ──
+    Note over C,DB: ── Phase 1: Upload (synchronous) ──
 
-    C->>MW: POST /documents/upload (multipart file + access_token cookie)
+    C->>MW: POST /api/v1/documents/upload (multipart + cookie)
     MW->>MW: Validate JWT → extract userID
-    MW->>H: Request with userID in context
-    H->>RP: IngestDocument(userID, documentID, source, file)
+    MW->>H: Request with user in ctx
+    H->>S: CreateDocument(userID, file)
 
-    RP->>RP: P2.1 Validate File (size ≤ 10MB, MIME type)
-    RP->>FS: P2.2 Write raw file to raw/
-    RP->>CH: P2.3 Split(text, size=500, overlap=100)
-    CH-->>RP: []Chunk (N chunks)
-    RP->>FS: P2.4 Write chunks to chunks/
-    RP->>DB: P2.5 INSERT INTO documents (id, user_id, source, size_bytes, status: draft)
-    DB-->>RP: ok
+    S->>RP: P2.1 Validate (size ≤ 10MB, MIME)
+    S->>DB: P2.2 INSERT INTO documents (owner_id, name, original_name, status: draft)
+    DB-->>S: doc record
+    S->>CH: P2.3 GenerateChunks(doc)
+    CH->>FS: P2.4 Write chunks to /uploads/chunks/
+    CH-->>S: ok
 
-    RP-->>H: IngestResult{documentID, status: draft}
-    H-->>C: 202 Accepted {document_id, status: "draft"}
+    S-->>H: doc{id, status: draft}
+    H-->>C: 202 Accepted {id, status: "draft"}
 
-    Note over C,DB: ── Phase 2: Message Send (triggered when user sends a message) ──
+    Note over C,DB: ── Phase 2: First Query (Lazy Embedding) ──
 
-    participant EC as EmbeddingClient
     participant OL as Ollama
     participant QD as Qdrant
 
-    C->>H: POST /chat {message, document_id}
-    H->>RP: PrepareDocument(documentID)
-    RP->>FS: Load chunks from chunks/
-    FS-->>RP: []Chunk
+    C->>H: POST /api/v1/conversations/{id} {question}
+    H->>S: EmbedDocument(docID)
+    S->>DB: P2.5 UPDATE status: processing
+    S->>FS: Load chunks from filesystem
+    FS-->>S: []Chunk
 
     loop For each chunk
-        RP->>EC: Embed(chunk.Text)
-        EC->>OL: P2.6 POST /api/embeddings {model: "nomic-embed-text:v1.5", prompt: chunk}
-        OL-->>EC: {embedding: [f32 × 768]}
-        EC-->>RP: []float32
+        S->>OL: P2.6 POST /api/embeddings
+        OL-->>S: []float32 (768)
     end
 
-    RP->>QD: P2.7 EnsureCollection("user_<userID>", vectorSize=768)
-    QD-->>RP: ok (created or already exists)
-    RP->>QD: P2.8 Upsert(collection, Point{id, vector, payload{documentID, text, index}})
-    QD-->>RP: ok
-    RP->>DB: P2.9 UPDATE documents SET status=ready, chunk_count=N WHERE id=documentID
-    DB-->>RP: ok
+    S->>QD: P2.7 Upsert vectors into collection
+    QD-->>S: ok
+    S->>DB: P2.8 UPDATE status: ready
+    DB-->>S: ok
 
-    RP-->>H: ready
-    H->>RP: RunRAG(userID, documentID, message)
-    RP-->>H: streamed answer
-    H-->>C: 200 OK (streamed response)
-
-    Note over C,DB: ── Background: Cleanup Job (runs on schedule) ──
-
-    participant BG as Cleanup Worker
-
-    BG->>DB: SELECT id, local_path FROM documents WHERE status=draft AND created_at < NOW()-24h
-    DB-->>BG: []staleDrafts
-    BG->>FS: Delete raw file + chunks for each
-    BG->>DB: DELETE FROM documents WHERE id IN (staleDraftIDs)
+    S-->>H: ready
+    H-->>C: (continues to RAG pipeline)
 ```
 
 ---
@@ -256,58 +184,44 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant C as Client
-    participant MW as JWT Middleware
+    participant MW as Auth Middleware
     participant H as Handler
-    participant CS as ChatService
-    participant RP as RAGPipeline
-    participant EC as EmbeddingClient
-    participant QD as Qdrant
+    participant S as ChatService
     participant OL as Ollama
+    participant QD as Qdrant
     participant DB as PostgreSQL
 
-    C->>MW: GET /chat/stream?question=...&top_k=5 (access_token cookie)
-    MW->>MW: Validate JWT → extract userID
-    MW->>H: Request with userID in context
+    C->>MW: POST /api/v1/conversations/{id} {question} (access_token cookie)
+    MW->>MW: Validate JWT → extract user
+    MW->>H: Request with user in ctx
 
-    H->>CS: P3.1 GetOrCreateSession(userID, sessionID?, documentID?)
-    CS->>DB: SELECT / INSERT chat_sessions
-    DB-->>CS: ChatSession
+    H->>S: SendMessage(conversationID, question)
 
-    CS->>DB: P3.2 INSERT INTO chat_messages (session_id, role='user', content=question)
-    DB-->>CS: ok
+    S->>DB: P3.1 INSERT INTO messages (conversation_id, role='user', content=question)
+    DB-->>S: ok
 
-    H->>RP: StreamAnswer(userID, question, topK, documentID?, responseWriter)
+    S->>OL: P3.2 Embed(question)
+    OL-->>S: queryVector (768)
 
-    RP->>EC: P3.3 Embed(question)
-    EC->>OL: POST /api/embeddings {model: nomic-embed-text:v1.5, prompt: question}
-    OL-->>EC: {embedding: [f32 × 768]}
-    EC-->>RP: queryVector
+    S->>QD: P3.3 Search(queryVector, topK, filter=documentID)
+    QD-->>S: []RetrievedChunks
 
-    RP->>QD: P3.4 Search(collection, queryVector, topK, filter=documentID?)
-    QD-->>RP: []SearchResult{text, documentID, score}
-
-    RP->>RP: P3.5 AssemblePrompt(systemInstruction, chunks, question)
-
-    H->>H: Set headers: Content-Type: text/event-stream, Cache-Control: no-cache
-
-    RP->>OL: P3.6 POST /api/chat {model: llama2.3:3b, messages, stream: true}
+    S->>OL: P3.4 POST /api/chat {prompt, context, stream: true}
 
     loop Streaming tokens
-        OL-->>RP: {message: {content: "<token>"}, done: false}
-        RP-->>C: data: <token>\n\n
+        OL-->>H: Token chunks via SSE
+        H-->>C: data: <token>
     end
 
-    OL-->>RP: {done: true}
-    RP-->>C: data: [DONE]\n\n
-
-    RP->>DB: P3.7 INSERT INTO chat_messages (session_id, role='assistant', content=fullResponse)
-    DB-->>RP: ok
-    RP->>DB: UPDATE chat_sessions SET updated_at = NOW()
+    OL-->>S: [Done]
+    S->>DB: P3.5 INSERT INTO messages (conversation_id, role='assistant', content=fullResp)
+    DB-->>S: ok
+    S->>DB: P3.6 UPDATE conversations SET updated_at = NOW()
 ```
 
 ---
 
-## SD-07: Password Reset Flow
+## SD-07: Password Reset Flow (Planned)
 
 ```mermaid
 sequenceDiagram
@@ -316,69 +230,40 @@ sequenceDiagram
     participant AS as AuthService
     participant DB as PostgreSQL
     participant ES as EmailService
-    participant SMTP as SMTP Server
 
-    Note over C,SMTP: Step 1 — Request reset
+    C->>H: POST /api/v1/auth/forgot-password {email}
+    H->>AS: RequestReset(email)
+    AS->>DB: INSERT INTO reset_tokens
+    AS->>ES: SendResetEmail(email, token)
+    H-->>C: 202 Accepted
 
-    C->>H: POST /auth/forgot-password {email}
-    H->>AS: RequestPasswordReset(email)
-    AS->>DB: SELECT * FROM users WHERE email = ?
-    Note right of AS: Always returns 202 regardless of result (prevents email enumeration)
-    alt User exists
-        DB-->>AS: user record
-        AS->>AS: GenerateHMACToken(userID, secret, 1h)
-        AS->>DB: INSERT INTO password_reset_tokens (user_id, token_hash, expires_at=+1h)
-        DB-->>AS: ok
-        AS->>ES: SendPasswordReset(email, displayName, token)
-        ES->>SMTP: Send email with reset link
-    else User not found
-        DB-->>AS: (no rows)
-        AS->>AS: (no-op)
-    end
-    AS-->>H: nil (always)
-    H-->>C: 202 Accepted {message: "If that email is registered, a reset link has been sent"}
+    Note over C,ES: User submits new password
 
-    Note over C,SMTP: Step 2 — Submit new password
-
-    C->>H: POST /auth/reset-password {token, new_password}
-    H->>AS: ResetPassword(token, newPassword)
-    AS->>AS: Validate password strength
-    AS->>AS: hash = SHA256(token)
-    AS->>DB: SELECT * FROM password_reset_tokens WHERE token_hash = hash
-    DB-->>AS: token record
-    AS->>AS: Check: not used, not expired
-    AS->>AS: bcrypt.Hash(newPassword, cost=12)
-    AS->>DB: UPDATE users SET password_hash = ? WHERE id = token.user_id
-    AS->>DB: UPDATE password_reset_tokens SET used = TRUE
-    AS->>DB: UPDATE refresh_tokens SET revoked = TRUE WHERE user_id = ? (revoke all sessions)
-    DB-->>AS: ok
-    AS-->>H: nil
-    H-->>C: 200 OK {message: "Password reset successfully. Please log in again."}
+    C->>H: POST /api/v1/auth/reset-password {token, password}
+    H->>AS: ResetPassword(token, password)
+    AS->>DB: UPDATE users SET password = ?
+    AS-->>H: ok
+    H-->>C: 200 OK
 ```
 
 ---
 
-## SD-08: Account Deletion
+## SD-08: Account Deletion (Planned)
 
 ```mermaid
 sequenceDiagram
     participant C as Client
-    participant MW as JWT Middleware
+    participant MW as Auth Middleware
     participant H as Handler
     participant US as UserService
     participant QD as Qdrant
     participant DB as PostgreSQL
 
-    C->>MW: DELETE /users/me (access_token cookie)
-    MW->>MW: Validate JWT → extract userID
-    MW->>H: Request with userID in context
-    H->>US: Delete(userID)
-    US->>QD: DeleteCollection("user_<userID>")
-    QD-->>US: ok (all vectors removed)
-    US->>DB: DELETE FROM users WHERE id = userID
-    Note right of DB: CASCADE deletes: oauth_accounts, refresh_tokens,\nverification_tokens, password_reset_tokens,\ndocuments, chat_sessions → chat_messages
-    DB-->>US: ok
-    US-->>H: nil
-    H->>H: Clear access_token and refresh_token cookies
+    C->>MW: DELETE /api/v1/auth/me (cookie)
+    MW->>MW: Validate JWT
+    H->>US: DeleteAccount(userID)
+    US->>QD: Delete user vectors
+    US->>DB: DELETE FROM users WHERE id = ?
+    Note right of DB: CASCADE deletes documents, conversations, etc.
     H-->>C: 204 No Content
 ```

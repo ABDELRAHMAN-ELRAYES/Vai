@@ -4,7 +4,7 @@
 
 **Version:** 1.0  
 **Status:** Draft  
-**Date:** June 2025  
+**Date:** April 2026  
 **Owner:** Product Team
 
 ---
@@ -26,7 +26,7 @@
 
 Vai is a self-hosted, privacy-first AI document assistant that enables users to upload their documents and receive accurate, context-grounded answers through a retrieval-augmented generation (RAG) pipeline. Unlike cloud-based AI services, Vai processes all data locally — no document content ever leaves the user's infrastructure.
 
-The system is built on Go, Ollama (llama2.3:3b + nomic-embed-text:v1.5), Qdrant, and PostgreSQL — all open-source, all self-hostable.
+The system is built on Go, Ollama (llama3.2:3b + nomic-embed-text:v1.5), Qdrant, and PostgreSQL — all open-source, all self-hostable.
 
 ---
 
@@ -68,39 +68,37 @@ Organizations and developers require intelligent document Q&A capabilities but f
 
 | ID         | Requirement                                                                                                                  | Priority |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------- | -------- |
-| FR-AUTH-01 | Users register with email + password. Passwords stored as bcrypt hashes (cost ≥ 12).                                         | P0       |
-| FR-AUTH-02 | JWT issued on login, stored as HTTP-only Secure SameSite=Strict cookie (15-min expiry) + refresh token (7-day expiry in DB). | P0       |
-| FR-AUTH-03 | OAuth 2.0 with Google (OpenID Connect) for single-sign-on.                                                                   | P0       |
-| FR-AUTH-04 | Email verification required before document uploads are permitted.                                                           | P0       |
-| FR-AUTH-05 | Password reset via HMAC-signed, time-limited token (1-hour expiry) emailed to the user.                                      | P0       |
-| FR-AUTH-06 | Refresh token rotation — invalidate old token on use and reissue a new one.                                                  | P0       |
-| FR-AUTH-07 | Logout revokes the current refresh token and clears both cookies.                                                            | P0       |
-| FR-AUTH-08 | Multiple active refresh tokens per user supported (multi-device login).                                                      | P1       |
+| FR-AUTH-01 | Users register with email + password. Passwords stored as securely hashed strings.                                            | P0       |
+| FR-AUTH-02 | JWT issued on login, stored as HTTP-only cookie with 90-day expiry.                                                          | P0       |
+| FR-AUTH-03 | OAuth 2.0 with Google for single-sign-on (Planned).                                                                          | P0       |
+| FR-AUTH-04 | Account activation required before document uploads are permitted.                                                            | P0       |
+| FR-AUTH-05 | Password reset via HMAC-signed, time-limited token emailed to the user (Planned).                                             | P0       |
+| FR-AUTH-07 | Logout clears the session cookie.                                                                                            | P0       |
 
 ### FR-DOC — Document Management
 
 | ID        | Requirement                                                                                                | Priority |
-| --------- | ---------------------------------------------------------------------------------------------------------- | -------- |
+| --------- | -------------------------------------------------------------------------------------------------------------------------- | -------- |
 | FR-DOC-01 | Users upload plain-text documents via multipart/form-data POST.                                            | P0       |
-| FR-DOC-02 | Documents are chunked with configurable size (default 500 chars) and overlap (default 100 chars).          | P0       |
-| FR-DOC-03 | Each chunk is embedded via Ollama (nomic-embed-text:v1.5) and stored in Qdrant under the user's namespace. | P0       |
-| FR-DOC-04 | Users can list, view metadata for, and delete their documents.                                             | P1       |
-| FR-DOC-05 | Document IDs are deterministic slugs derived from the filename.                                            | P1       |
-| FR-DOC-06 | Deleting a document removes both the PostgreSQL metadata record and all Qdrant vectors.                    | P1       |
-| FR-DOC-07 | Maximum file size: 10MB. Supported types: .txt (v1.0); .pdf, .docx (v1.1).                                 | P0       |
+| FR-DOC-02 | Documents are chunked and stored in the filesystem (status: draft).                                        | P0       |
+| FR-DOC-03 | Embedding and vector storage in Qdrant are deferred until the first query (Lazy Embedding).               | P0       |
+| FR-DOC-04 | Users can list and delete their documents (Planned).                                                       | P1       |
+| FR-DOC-05 | Document IDs are unique UUIDs.                                                                             | P1       |
+| FR-DOC-06 | Deleting a document removes metadata, raw files, chunks, and Qdrant vectors (Planned).                   | P1       |
+| FR-DOC-07 | Maximum file size: 10MB. Supported types: .txt.                                                            | P0       |
 
-### FR-CHAT — Chat & Q&A
+### FR-CHAT — Conversation & Q&A
 
 | ID         | Requirement                                                                        | Priority |
 | ---------- | ---------------------------------------------------------------------------------- | -------- |
-| FR-CHAT-01 | Users submit natural-language questions via POST /chat.                            | P0       |
-| FR-CHAT-02 | System retrieves top-K semantically similar chunks from Qdrant (default K=5).      | P0       |
-| FR-CHAT-03 | Retrieved chunks are assembled into a context-enriched prompt and sent to the LLM. | P0       |
-| FR-CHAT-04 | Chat sessions are persisted per user with full message history in PostgreSQL.      | P0       |
-| FR-CHAT-05 | Streaming responses delivered via Server-Sent Events (GET /chat/stream).           | P0       |
-| FR-CHAT-06 | Users can filter Q&A to a specific document or query across all documents.         | P1       |
-| FR-CHAT-07 | Users can create, list, view, and delete chat sessions.                            | P1       |
-| FR-CHAT-08 | Auto-generate a session title from the first question if not provided.             | P2       |
+| FR-CHAT-01 | Users submit natural-language questions via /api/v1/conversations/{id}.             | P0       |
+| FR-CHAT-02 | System retrieves top-K semantically similar chunks from Qdrant.                    | P0       |
+| FR-CHAT-03 | Retrieved chunks are assembled into a context prompt for the LLM.                  | P0       |
+| FR-CHAT-04 | Conversations are persisted per user with full message history in PostgreSQL.      | P0       |
+| FR-CHAT-05 | Streaming responses delivered via Server-Sent Events (SSE).                        | P0       |
+| FR-CHAT-06 | Users can filter Q&A to a specific document.                                       | P1       |
+| FR-CHAT-07 | Users can create, list, and view conversations.                                    | P1       |
+| FR-CHAT-08 | Auto-generate a conversation title from the first question.                        | P2       |
 
 ### FR-EMAIL — Email Service
 
@@ -127,14 +125,13 @@ Organizations and developers require intelligent document Q&A capabilities but f
 | NFR-PERF-01   | Performance     | API latency          | P95 < 200ms for all non-LLM endpoints                      |
 | NFR-PERF-02   | Performance     | Streaming TTFB       | < 1s to first SSE token                                    |
 | NFR-PERF-03   | Performance     | Ingestion throughput | 1MB file fully ingested in < 10s                           |
-| NFR-SEC-01    | Security        | Token storage        | JWT in HTTP-only Secure SameSite=Strict cookie             |
+| NFR-SEC-01    | Security        | Token storage        | JWT in HTTP-only cookie (90-day expiry)                    |
 | NFR-SEC-02    | Security        | Password hashing     | bcrypt with cost factor ≥ 12                               |
-| NFR-SEC-03    | Security        | Transport            | TLS 1.2+ enforced in production                            |
-| NFR-SEC-04    | Security        | CSRF                 | SameSite=Strict cookie + OAuth state param validation      |
 | NFR-SEC-05    | Security        | Rate limiting        | Auth endpoints: max 20 req/min per IP                      |
 | NFR-PRIV-01   | Privacy         | Data residency       | Zero external API calls during document processing         |
 | NFR-PRIV-02   | Privacy         | User isolation       | Qdrant collections namespaced per user (`user_{userID}`)   |
 | NFR-PRIV-03   | Privacy         | Logging              | No document content logged, only metadata                  |
+
 | NFR-REL-01    | Reliability     | Uptime               | 99.5% monthly uptime target                                |
 | NFR-SCAL-01   | Scalability     | Concurrency          | Support 1,000 concurrent users                             |
 | NFR-SCAL-02   | Scalability     | Documents per user   | Support up to 10,000 documents per user                    |
@@ -153,10 +150,10 @@ Organizations and developers require intelligent document Q&A capabilities but f
 | US-004   | User                   | As a user, I want to receive a streaming response so that I see answers progressively without waiting for the full reply.        | SSE events begin within 1 second of request                          |
 | US-005   | Admin                  | As a system operator, I want users to verify their email before uploading documents so that I can prevent spam and abuse.        | Unverified users receive 403 on POST /documents/upload               |
 | US-006   | User                   | As a user, I want to reset my password via email so that I can recover access if I forget it.                                    | Reset link works once, expires in 1 hour                             |
-| US-007   | User                   | As a user, I want to see all my past conversations so that I can refer back to prior answers.                                    | GET /chat/sessions returns all sessions with last message timestamp  |
-| US-008   | Developer              | As a developer, I want a debug search endpoint so that I can inspect exactly what chunks are retrieved for a given query.        | POST /search returns chunks with scores without calling the LLM      |
-| US-009   | User                   | As a user, I want to delete a document so that its content is no longer searchable and is fully removed from the system.         | DELETE removes PostgreSQL record + all Qdrant vectors                |
-| US-010   | User                   | As a user, I want to filter my questions to a specific document so that I get focused answers from that source only.             | document_id param restricts Qdrant search to that document's vectors |
+| US-007   | User                   | As a user, I want to see all my past conversations so that I can refer back to prior answers.                                    | GET /api/v1/conversations returns all conversations with last updated timestamp |
+| US-008   | Developer              | As a developer, I want a debug search endpoint so that I can inspect exactly what chunks are retrieved.                             | POST /api/v1/search returns chunks with scores (Planned)                       |
+| US-009   | User                   | As a user, I want to delete a document so that its content is fully removed.                                                     | DELETE removes metadata, raw files, and all Qdrant vectors (Planned)           |
+| US-010   | User                   | As a user, I want to filter my questions to a specific document to get focused answers.                                          | document_id param restricts Qdrant search to that document's vectors           |
 
 ---
 
@@ -164,10 +161,10 @@ Organizations and developers require intelligent document Q&A capabilities but f
 
 ### Authentication
 
-- All FR-AUTH requirements pass integration tests with the full JWT lifecycle (issue → use → refresh → revoke).
-- Attempting to use a revoked refresh token returns 401.
+- All FR-AUTH requirements pass integration tests with the single JWT lifecycle.
+- Accessing protected routes without a valid JWT cookie returns 401.
 - Google OAuth flow creates a new user on first login and reuses the existing user on subsequent logins (matched by email).
-- Password reset invalidates all existing refresh tokens for the user.
+- Password reset flow successfully updates the user's password in the database.
 
 ### Document Management
 

@@ -1,113 +1,81 @@
-# Architecture Diagram
+# Architecture
 
 ## Vai — Privacy-First AI Document Assistant
 
-**Version:** 1.0  
-**Date:** June 2025
+**Version:** 1.0
+**Date:** April 2026
 
 ---
 
 ## System Architecture Overview
 
 ```mermaid
-graph LR
-    %% Column 1: Client
-    User([User / Browser])
+flowchart TD
+    User([User])
 
-    %% Column 2: Gateway
-    subgraph Middleware [Gatekeeper Layer]
-        direction TB
-        CORS[CORS Policy]
-        Auth[JWT Validator]
-        Limit[Rate Limiter]
+    subgraph Engines [Logic Layer]
+        direction LR
+        P1[P1: Auth & Identity]
+        P2[P2: Doc Ingestion]
+        P3[P3: RAG Query]
+        P4[P4: Email Dispatch]
     end
 
-    %% Column 3: Go Backend logic
-    subgraph App [Vai Backend Service]
-        direction TB
-        subgraph Handlers [API Endpoints]
-            H_Auth["/auth"]
-            H_Chat["/chat (SSE)"]
-            H_Docs["/documents"]
-        end
-
-        subgraph Logic [Business Logic Services]
-            S_Auth[AuthService]
-            S_Chat[ChatService]
-            S_Email[EmailService]
-        end
-
-        subgraph P2_Ingestion [P2: Ingestion Pipeline]
-            P2_1[P2.1: Validate]
-            P2_2[P2.2: Decode]
-            P2_3[P2.3: Chunk]
-            P2_4[P2.4: Embedder]
-        end
-
-        subgraph P3_RAG [P3: RAG Engine]
-            Pipe[Query Pipeline]
-        end
+    subgraph Auth_System [External Auth]
+        Google([Google OAuth])
     end
 
-    %% Column 4: Infrastructure & AI
-    subgraph AI [Inference: Ollama]
-        direction TB
-        M_Emb["D3a: Nomic-Embed-Text v1.5"]
-        M_Gen["D3b: Qwen 3.5 4b"]
+    subgraph Storage [Storage Layer]
+        DB[(PostgreSQL)]
+        FS_RAW[(Filesystem — raw/)]
+        FS_TMP[(Filesystem — chunks/)]
+        QD[(Qdrant)]
     end
 
-    subgraph Data [Persistence Layer]
-        direction TB
-        PG[("D1: PostgreSQL")]
-        QD[("D2: Qdrant")]
-        FS[("D4: Filesystem")]
+    subgraph Ollama [AI Models]
+        OL_EMB[nomic-embed-text v1.5]
+        OL_GEN[llama3.2:3b]
     end
 
-    subgraph External [External Services]
-        direction TB
-        Google([Google OAuth 2.0])
-        SMTP([SMTP Server])
+    subgraph Comms [Outbound]
+        SMTP([SMTP])
     end
 
-    %% --- THE UPDATED FLOW ---
+    subgraph Cleanup [Background]
+        BG[Cleanup Worker — 24h draft expiry]
+    end
 
-    %% Entry
-    User --> Middleware
-    Middleware --> Handlers
+    User --->|"Auth Request"| P1
+    P1 <--->|"Verify"| Google
+    P1 <--->|"Sessions"| DB
+    P1 --->|"JWT Cookie"| User
 
-    %% Auth Flow
-    H_Auth --> S_Auth
-    S_Auth --> PG
-    S_Auth -.-> Google
+    User --->|"Upload"| P2
+    P2 ==>|"Write raw file"| FS_RAW
+    P2 ==>|"Write chunks"| FS_TMP
+    P2 ==>|"INSERT (status: draft)"| DB
+    P2 --->|"202 Accepted"| User
 
-    %% Document Ingestion Flow (P2 Logic)
-    H_Docs --> P2_1
-    P2_1 --> P2_2
-    P2_2 <--> FS
-    P2_2 --> P2_3
-    P2_3 --> P2_4
-    P2_4 <--> M_Emb
-    P2_4 --> QD
-    P2_4 --> PG
+    User --->|"Query + documentID"| P3
+    P3 <-->|"Load chunks (if draft)"| FS_TMP
+    P3 <-->|"Embed chunks + question"| OL_EMB
+    P3 <-->|"Upsert + search vectors"| QD
+    P3 --->|"Context"| OL_GEN
+    P3 ==>|"UPDATE status: ready, log messages"| DB
+    P3 -.->|"SSE stream"| User
 
-    %% Chat/RAG Flow (P3 Logic)
-    H_Chat --> S_Chat
-    S_Chat --> Pipe
-    Pipe <--> M_Emb
-    Pipe <--> QD
-    Pipe <--> M_Gen
-    Pipe --> PG
+    P1 -.-> P4
+    P4 ---> SMTP
 
-    %% Email Trigger
-    S_Chat --> S_Email
-    S_Email -.-> SMTP
+    BG -.->|"DELETE drafts older than 24h"| FS_RAW
+    BG -.->|"DELETE chunks"| FS_TMP
+    BG -.->|"DELETE WHERE status=draft AND age > 24h"| DB
 
-    %% Final Styling applied from the second diagram
-    style Middleware fill:#f9f9f9,stroke-dasharray: 5 5
-    style App fill:#ffffff,stroke:#333
-    style AI fill:#fff4dd,stroke:#d4a017
-    style Data fill:#e1f5fe,stroke:#01579b
-    style External fill:#ffffff,stroke:#333
+    style Engines fill:none,stroke:none
+    style Ollama fill:#f9f9f9,stroke:#333
+    style OL_EMB fill:#d1e9ff
+    style OL_GEN fill:#fff4dd
+    style Cleanup fill:#f9f9f9,stroke:#333,stroke-width:1px
 ```
 
 ---
@@ -117,9 +85,10 @@ graph LR
 ```mermaid
 graph LR
     subgraph DockerNetwork["Docker Bridge Network: vai_network"]
-        API["vai-api\n:8080\nGo binary"]
+        WEB["vai-web\n:5173\nVite/React"]
+        API["vai-api\n:3000\nGo binary"]
         PG["postgres\n:5432\nPostgreSQL 16"]
-        QD["qdrant\n:6333\nVector DB"]
+        QD["qdrant\n:6334\nVector DB"]
         OL["ollama\n:11434\nLLM Runtime"]
     end
 
@@ -129,6 +98,7 @@ graph LR
         OLVol[("ollama_models")]
     end
 
+    WEB -->|REST/SSE| API
     API -->|pgx/v5| PG
     API -->|HTTP REST| QD
     API -->|HTTP REST| OL
@@ -136,27 +106,46 @@ graph LR
     QD --- QDVol
     OL --- OLVol
 
-    Host["Host Machine :8080"] -->|port mapping| API
+    Host["Host Machine :5173, :3000"] -->|port mapping| WEB
+    Host -->|port mapping| API
 ```
 
 ---
 
 ## Data Flow — Document Ingestion
 
+Embedding is **deferred** — it does not happen at upload time. The upload endpoint only validates, chunks, and stores the document as `draft`. Embedding runs lazily on the first query.
+
 ```mermaid
 flowchart LR
     File["📄 Text File\n(multipart upload)"]
-    Chunker["Chunker\n500-char chunks\n100-char overlap"]
-    Embed["Ollama Embeddings\nnomic-embed-text:v1.5\n-> 768-dim vector"]
-    Qdrant[("Qdrant\nUpsert vectors\n+ payload")]
-    PG[("PostgreSQL\nInsert document\nmetadata")]
-    Response["✅ Response\n(document_id, chunks)"]
+    Chunker["Chunker\n512-char chunks\n70-char overlap\nboundary-aware"]
+    FS[("Filesystem\nchunks/")]
+    PG[("PostgreSQL\nInsert document\nstatus: draft")]
+    Response["✅ 202 Accepted\n(document_id, status: draft)"]
 
     File --> Chunker
-    Chunker -->|"[]Chunk"| Embed
+    Chunker -->|"[]Chunk"| FS
+    FS --> PG
+    PG --> Response
+```
+
+---
+
+## Data Flow — Deferred Embedding (First Query Only)
+
+Runs automatically inside the RAG engine when a document's status is still `draft`.
+
+```mermaid
+flowchart LR
+    FS[("Filesystem\nchunks/")]
+    Embed["Ollama Embeddings\nnomic-embed-text v1.5\n→ 768-dim vector"]
+    Qdrant[("Qdrant\nUpsert vectors\n+ payload")]
+    PG[("PostgreSQL\nUPDATE status: ready\nchunk_count")]
+
+    FS -->|"[]Chunk texts"| Embed
     Embed -->|"[]float32 per chunk"| Qdrant
     Qdrant --> PG
-    PG --> Response
 ```
 
 ---
@@ -169,7 +158,7 @@ flowchart LR
     Embed["Ollama Embeddings\n→ query vector"]
     Qdrant[("Qdrant\nCosine Search\ntop-K chunks")]
     Prompt["Prompt Assembly\nsystem + context + question"]
-    Ollama["Ollama LLM\nllama2.3:3b\nstreaming"]
+    Ollama["Ollama LLM\nllama3.2:3b\nstreaming"]
     SSE["📡 SSE Stream\ntoken by token"]
     PG[("PostgreSQL\nSave assistant\nmessage")]
 
@@ -185,32 +174,33 @@ flowchart LR
 
 ## Authentication Architecture
 
+Vai uses **Google OAuth 2.0** exclusively. There is no email/password registration. On successful OAuth callback, a signed JWT is issued and stored in an `HttpOnly` cookie. No refresh token — the JWT has a 90-day TTL and is read automatically from the cookie on every request.
+
 ```mermaid
 flowchart TD
-    subgraph EmailAuth["Email / Password Auth"]
-        Reg["POST /auth/register"]
-        Login["POST /auth/login"]
-        Logout["POST /auth/logout"]
-        Refresh["POST /auth/refresh"]
-    end
-
     subgraph OAuth["Google OAuth 2.0"]
-        Init["GET /auth/google\nGenerate state → cookie\nRedirect to Google"]
+        Init["GET /auth/google/login\nGenerate state → cookie\nRedirect to Google"]
         CB["GET /auth/google/callback\nValidate state\nExchange code\nValidate ID token\nUpsert user"]
     end
 
     subgraph TokenMgmt["Token Management"]
-        JWT["Access Token\nJWT HS256\n15 min TTL\nHTTP-only cookie"]
-        RT["Refresh Token\n32-byte random\n7-day TTL\nStored hashed in DB\nHTTP-only cookie"]
+        JWT["Access Token\nJWT HS256\n90-day TTL\nHttpOnly cookie (SameSite=Lax)\nKey: access_token"]
     end
 
-    Reg -->|bcrypt hash, verify email| PG[("PostgreSQL")]
-    Login -->|bcrypt compare| JWT
-    Login --> RT
+    subgraph Middleware["Auth Middleware"]
+        CK["Read access_token cookie"]
+        VF["Validate JWT\n(issuer: VAI-API, audience: USERS)"]
+        EV["Check email_verified"]
+    end
+
+    Init -->|"OAuth redirect"| Google([Google])
+    Google -->|"code + state"| CB
+    CB -->|"Upsert user"| PG[("PostgreSQL")]
     CB --> JWT
-    CB --> RT
-    Refresh -->|rotate| RT
-    Refresh --> JWT
+
+    JWT -->|"Set-Cookie on response"| Browser(["Browser"])
+    Browser -->|"Cookie on every request"| CK
+    CK --> VF --> EV
 ```
 
 ---
@@ -220,12 +210,12 @@ flowchart TD
 ```mermaid
 graph TD
     Internet["🌍 Internet"]
-    Nginx["Nginx / Caddy\nTLS Termination\n:443 → :8080"]
-    API["vai-api\n:8080"]
+    Nginx["Nginx / Caddy\nTLS Termination\n:443 → :3000"]
+    API["vai-api\n:3000"]
     PG["PostgreSQL\n:5432\n⛔ internal only"]
-    QD["Qdrant\n:6333\n⛔ internal only"]
+    QD["Qdrant\n:6334\n⛔ internal only"]
     OL["Ollama\n:11434\n⛔ internal only"]
-    SMTP["SMTP\n:587 / :465\n🌐 outbound only"]
+    SMTP["SMTP\n:587\n🌐 outbound only"]
     Google["Google OAuth\n:443\n🌐 outbound only"]
 
     Internet -->|HTTPS| Nginx
@@ -244,7 +234,7 @@ graph TD
 ```mermaid
 graph LR
     subgraph Dev["Development"]
-        DevCompose["docker compose up\nAll services local\nHot-reload via Air"]
+        DevCompose["docker compose up\nAll services local\nHot-reload via Air\nFrontend: :5173\nAPI: :3000"]
     end
 
     subgraph Staging["Staging"]
@@ -253,7 +243,7 @@ graph LR
 
     subgraph Prod["Production"]
         ProdNginx["Nginx + Let's Encrypt\nTLS :443"]
-        ProdAPI["vai-api\n:8080"]
+        ProdAPI["vai-api\n:3000"]
         ProdPG["PostgreSQL\nVolume-backed"]
         ProdQD["Qdrant\nVolume-backed"]
         ProdOL["Ollama\nGPU if available"]

@@ -2,7 +2,7 @@
 ## Vai — Actor Interactions & System Use Cases
 
 **Version:** 1.0  
-**Date:** June 2025
+**Date:** April 2026
 
 ---
 
@@ -10,11 +10,11 @@
 
 | Actor | Type | Description |
 |-------|------|-------------|
-| **Anonymous User** | Primary External | Can register, initiate OAuth, verify email, reset password |
-| **Authenticated User** | Primary External | Full system access: documents, chat, profile management |
-| **System Scheduler** | Internal | Automated cleanup jobs (expired tokens, orphaned collections) |
-| **Google OAuth** | External System | Provides identity tokens in OAuth flow |
-| **SMTP Server** | External System | Delivers transactional emails |
+| **Anonymous User** | Primary External | Can register, initiate OAuth, and activate account |
+| **Authenticated User** | Primary External | Full system access: documents, conversations, profile |
+| **System Scheduler** | Internal | Automated cleanup of stale document drafts (24h expiry) |
+| **Google OAuth** | External System | Provides identity tokens for single sign-on |
+| **SMTP Server** | External System | Delivers activation and transactional emails |
 | **Ollama** | External System | Local AI inference — embeddings + generation |
 | **Qdrant** | External System | Vector similarity search |
 
@@ -33,41 +33,35 @@ graph TB
     subgraph System["VAI SYSTEM"]
         subgraph Auth_UC["Authentication Use Cases"]
             UC001["UC-001\nRegister Account"]
-            UC002["UC-002\nVerify Email"]
+            UC002["UC-002\nActivate Account"]
             UC003["UC-003\nLogin Email/Password"]
             UC004["UC-004\nLogin with Google"]
             UC005["UC-005\nLogout"]
-            UC006["UC-006\nRefresh Access Token"]
-            UC007["UC-007\nRequest Password Reset"]
-            UC008["UC-008\nReset Password"]
+            UC007["UC-007\nRequest Password Reset (Planned)"]
+            UC008["UC-008\nReset Password (Planned)"]
         end
 
         subgraph Profile_UC["Profile Use Cases"]
             UC010["UC-010\nView Profile"]
-            UC011["UC-011\nUpdate Profile"]
-            UC012["UC-012\nDelete Account"]
+            UC012["UC-012\nDelete Account (Planned)"]
         end
 
         subgraph Doc_UC["Document Use Cases"]
             UC020["UC-020\nUpload Document"]
-            UC021["UC-021\nList Documents"]
-            UC022["UC-022\nGet Document Metadata"]
-            UC023["UC-023\nDelete Document"]
+            UC021["UC-021\nList Documents (Planned)"]
+            UC023["UC-023\nDelete Document (Planned)"]
         end
 
-        subgraph Chat_UC["Chat Use Cases"]
-            UC030["UC-030\nCreate Chat Session"]
-            UC031["UC-031\nList Chat Sessions"]
-            UC032["UC-032\nView Session History"]
-            UC033["UC-033\nAsk Question (Sync)"]
+        subgraph Chat_UC["Conversation Use Cases"]
+            UC030["UC-030\nCreate Conversation"]
+            UC031["UC-031\nList Conversations"]
+            UC032["UC-032\nView Conversation History"]
             UC034["UC-034\nAsk Question (Stream)"]
-            UC035["UC-035\nDelete Chat Session"]
-            UC036["UC-036\nDebug Chunk Search"]
+            UC036["UC-036\nDebug Chunk Search (Planned)"]
         end
 
         subgraph System_UC["System Use Cases"]
-            UC040["UC-040\nPurge Expired Tokens"]
-            UC041["UC-041\nCleanup Orphaned Collections"]
+            UC040["UC-040\nPurge Stale Drafts"]
         end
     end
 
@@ -86,35 +80,27 @@ graph TB
     AnonUser --> UC008
 
     AuthUser --> UC005
-    AuthUser --> UC006
     AuthUser --> UC010
-    AuthUser --> UC011
     AuthUser --> UC012
     AuthUser --> UC020
     AuthUser --> UC021
-    AuthUser --> UC022
     AuthUser --> UC023
     AuthUser --> UC030
     AuthUser --> UC031
     AuthUser --> UC032
-    AuthUser --> UC033
     AuthUser --> UC034
-    AuthUser --> UC035
     AuthUser --> UC036
 
     Scheduler --> UC040
-    Scheduler --> UC041
 
     UC004 --> Google
     UC001 -->|"sends email"| SMTP
     UC007 -->|"sends email"| SMTP
-    UC020 -->|"embeddings"| OL
-    UC033 -->|"embeddings + generation"| OL
-    UC034 -->|"embeddings + streaming"| OL
-    UC020 -->|"store vectors"| QD
-    UC033 -->|"vector search"| QD
+    UC020 -->|"store raw file"| FS[(Filesystem)]
+    UC034 -->|"lazy embedding"| OL
+    UC034 -->|"lazy embedding"| QD
     UC034 -->|"vector search"| QD
-    UC036 -->|"vector search"| QD
+    UC034 -->|"generation"| OL
 ```
 
 ---
@@ -125,32 +111,24 @@ graph TB
 graph TD
     subgraph Include["«include» Relationships"]
         UC001["UC-001 Register"]
-        UC002["UC-002 Verify Email"]
+        UC002["UC-002 Activate Account"]
         UC001 -->|"«include»\ntriggers"| UC002
 
         UC003["UC-003 Login\nEmail/Password"]
         UC004["UC-004 Login\nGoogle OAuth"]
-        UC_JWT["Issue JWT +\nRefresh Token"]
+        UC_JWT["Issue 90-day JWT"]
         UC003 -->|"«include»"| UC_JWT
         UC004 -->|"«include»"| UC_JWT
 
-        UC033["UC-033 Ask Question"]
         UC034["UC-034 Stream Question"]
         UC_RAG["RAG Pipeline\n(embed + search + generate)"]
-        UC033 -->|"«include»"| UC_RAG
         UC034 -->|"«include»"| UC_RAG
     end
 
     subgraph Extend["«extend» Relationships"]
-        UC030["UC-030 Create Session"]
-        UC033b["UC-033 Ask Question"]
         UC034b["UC-034 Stream Question"]
-        UC033b -->|"«extend»\nauto-create session\nif none provided"| UC030
-        UC034b -->|"«extend»\nauto-create session\nif none provided"| UC030
-
-        UC020["UC-020 Upload Document"]
         UC_Chunk["Chunking +\nEmbedding Pipeline"]
-        UC020 -->|"«extend»"| UC_Chunk
+        UC034b -->|"«extend»\nif document is draft"| UC_Chunk
     end
 
     subgraph Generalization["Generalization"]
@@ -171,30 +149,30 @@ graph TD
 | **Actor** | Anonymous User |
 | **Preconditions** | Email not already registered |
 | **Trigger** | User submits registration form |
-| **Main Flow** | 1. Submit email + password + display_name → 2. Validate input → 3. Hash password (bcrypt) → 4. Store user (unverified) → 5. Generate HMAC token → 6. Send verification email |
-| **Postconditions** | Account created with `is_verified=false`. Verification email sent. |
-| **Exceptions** | E1: Email already registered → 409. E2: Weak password → 422. |
+| **Main Flow** | 1. Submit first_name + last_name + email + password → 2. Validate input → 3. Hash password → 4. Store user (is_active: false) → 5. Generate activation token → 6. Send activation email |
+| **Postconditions** | Account created with `is_active=false`. Email sent. |
+| **Exceptions** | E1: Email already registered → 400 Conflict. E2: Weak password → 400 Bad Request. |
 
-### UC-002: Verify Email
+### UC-002: Activate Account
 
 | Field | Detail |
 |-------|--------|
 | **Actor** | Anonymous User |
-| **Preconditions** | Verification email received; token not expired (24h) or used |
-| **Trigger** | User clicks verification link |
-| **Main Flow** | 1. GET /auth/verify?token=... → 2. Validate HMAC signature → 3. Check token in DB (not used, not expired) → 4. Set `is_verified=true` → 5. Mark token used |
-| **Postconditions** | User can now upload documents |
-| **Exceptions** | E1: Token invalid → 401. E2: Token expired → 401. E3: Already used → 401. |
+| **Preconditions** | Activation email received; token not expired |
+| **Trigger** | User submits activation token |
+| **Main Flow** | 1. POST /api/v1/auth/activate/{token} → 2. Validate token in DB → 3. Set `is_active=true` |
+| **Postconditions** | User can now login and upload documents |
+| **Exceptions** | E1: Token invalid/expired → 400/404. |
 
 ### UC-003: Login with Email/Password
 
 | Field | Detail |
 |-------|--------|
 | **Actor** | Anonymous User |
-| **Preconditions** | Account exists |
-| **Main Flow** | 1. Submit credentials → 2. bcrypt compare → 3. Issue JWT (15min) + refresh token (7d) → 4. Set HTTP-only cookies |
-| **Postconditions** | User authenticated; JWT cookie set |
-| **Exceptions** | E1: Wrong credentials → 401 (generic, no email enumeration) |
+| **Preconditions** | Account exists and is active |
+| **Main Flow** | 1. Submit credentials → 2. Compare hash → 3. Issue 90-day JWT → 4. Set HTTP-only cookie |
+| **Postconditions** | User authenticated; access_token cookie set |
+| **Exceptions** | E1: Wrong credentials → 401 Unauthorized |
 
 ### UC-004: Login with Google
 
@@ -215,10 +193,10 @@ graph TD
 | Field | Detail |
 |-------|--------|
 | **Actor** | Authenticated User |
-| **Preconditions** | User `is_verified=true` |
-| **Main Flow** | 1. POST file → 2. Validate → 3. Chunk text → 4. Embed each chunk → 5. Upsert to Qdrant → 6. Save metadata to PostgreSQL |
-| **Postconditions** | Document queryable via chat and search |
-| **Exceptions** | E1: Not verified → 403. E2: File too large → 413. E3: Unsupported type → 422. |
+| **Preconditions** | Account is active |
+| **Main Flow** | 1. POST file → 2. Validate → 3. Store raw file → 4. Generate & store chunks in filesystem → 5. Save metadata to DB (status: draft) |
+| **Postconditions** | Document stored as draft. Embedding deferred to first query. |
+| **Exceptions** | E1: Not active → 403. E2: File too large → 400. |
 
 ### UC-033: Ask Question (Synchronous)
 
@@ -233,8 +211,8 @@ graph TD
 | Field | Detail |
 |-------|--------|
 | **Actor** | Authenticated User |
-| **Main Flow** | Same as UC-033 but response streamed token-by-token via SSE |
-| **Postconditions** | Full assembled response saved to chat history after stream completes |
+| **Main Flow** | 1. POST question → 2. Check document status; if "draft", run chunk-embedding-upsert pipeline → 3. Embed question → 4. Vector search Qdrant → 5. Stream response via SSE |
+| **Postconditions** | Response streamed. Conversation history updated locally after completion. |
 
 ### UC-036: Debug Chunk Search
 
@@ -248,20 +226,11 @@ graph TD
 
 ## System Use Cases
 
-### UC-040: Purge Expired Tokens
+### UC-040: Purge Stale Drafts
 
 | Field | Detail |
 |-------|--------|
 | **Actor** | System Scheduler |
-| **Trigger** | Scheduled cron job (daily at 02:00) |
-| **Action** | `DELETE FROM verification_tokens WHERE expires_at < NOW()` · `DELETE FROM password_reset_tokens WHERE expires_at < NOW()` · `DELETE FROM refresh_tokens WHERE expires_at < NOW() OR revoked = TRUE` |
-| **Purpose** | Keep DB clean; prevent index bloat |
-
-### UC-041: Cleanup Orphaned Qdrant Collections
-
-| Field | Detail |
-|-------|--------|
-| **Actor** | System Scheduler |
-| **Trigger** | Scheduled weekly |
-| **Action** | List Qdrant collections → compare against users in DB → delete collections with no matching user |
-| **Purpose** | Handle cases where user deletion cascaded in DB but Qdrant call failed |
+| **Trigger** | Scheduled job (e.g., every 24h) |
+| **Action** | `DELETE FROM documents WHERE status = 'draft' AND created_at < NOW() - '24 hours'::interval` |
+| **Purpose** | Clean up raw files and chunks for documents that were never queried/embedded |

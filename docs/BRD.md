@@ -4,7 +4,7 @@
 
 **Version:** 1.0  
 **Status:** Approved  
-**Date:** June 2025  
+**Date:** April 2026  
 **Sponsor:** Engineering Leadership
 
 ---
@@ -35,12 +35,12 @@ The business case is straightforward: organizations that need AI document Q&A to
 
 | #     | Objective                                                                | Target Date   | Owner        |
 | ----- | ------------------------------------------------------------------------ | ------------- | ------------ |
-| BO-01 | Deliver a production-ready self-hosted RAG platform                      | Q3 2025       | Engineering  |
-| BO-02 | Enable AI document Q&A with zero third-party data exposure               | Q2 2025 (MVP) | Architecture |
-| BO-03 | Provide a RESTful API that integrates with existing developer workflows  | Q2 2025       | Backend      |
-| BO-04 | Support multi-user environments with per-user isolation and chat history | Q2 2025       | Backend      |
-| BO-05 | Achieve single-command Docker deployment                                 | Q1 2025       | DevOps       |
-| BO-06 | Establish an open-source foundation with community extensibility         | Q3 2025       | Product      |
+| BO-01 | Deliver a production-ready self-hosted RAG platform                      | Q4 2026       | Engineering  |
+| BO-02 | Enable AI document Q&A with zero third-party data exposure               | Q2 2026 (MVP) | Architecture |
+| BO-03 | Provide a RESTful API that integrates with existing developer workflows  | Q2 2026       | Backend      |
+| BO-04 | Support multi-user environments with per-user isolation and chat history | Q2 2026       | Backend      |
+| BO-05 | Achieve single-command Docker deployment (all-in-one stack) | Q2 2026       | DevOps       |
+| BO-06 | Establish an open-source foundation with community extensibility         | Q4 2026       | Product      |
 
 ---
 
@@ -91,7 +91,7 @@ The business case is straightforward: organizations that need AI document Q&A to
 | ID    | Assumption                                                                                               |
 | ----- | -------------------------------------------------------------------------------------------------------- |
 | BA-01 | Users have Docker Desktop or Docker Engine installed and available                                       |
-| BA-02 | Users have Ollama installed and can pull the required models (llama2.3:3b, nomic-embed-text:v1.5)        |
+| BA-02 | Users can download required models (llama3.2:3b, nomic-embed-text:v1.5) via Ollama |
 | BA-03 | The target deployment environment has at minimum 8GB RAM and 20GB available disk space                   |
 | BA-04 | Email delivery uses an SMTP provider (self-hosted or third-party) configurable via environment variables |
 | BA-05 | Google OAuth credentials (client ID + secret) are provisioned separately by the deploying team           |

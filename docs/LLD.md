@@ -3,7 +3,7 @@
 ## Vai — Privacy-First AI Document Assistant
 
 **Version:** 1.0  
-**Date:** June 2025  
+**Date:** April 2026  
 **Author:** Lead Software Architect
 
 ---
@@ -23,75 +23,31 @@
 
 ## Package Structure
 
-```
-vai/
-├── main.go                        # Entry point: wire all layers, start HTTP server
-├── go.mod
-├── go.sum
-│
-├── config/
-│   └── config.go                  # Load env vars → typed Config struct; validate required fields
-│
-├── db/
-│   ├── db.go                      # pgx/v5 connection pool setup
-│   └── migrations/                # SQL migration files (golang-migrate)
-│       ├── 001_create_users.up.sql
-│       ├── 001_create_users.down.sql
-│       ├── 002_create_oauth_accounts.up.sql
-│       ├── 003_create_refresh_tokens.up.sql
-│       ├── 004_create_verification_tokens.up.sql
-│       ├── 005_create_password_reset_tokens.up.sql
-│       ├── 006_create_documents.up.sql
-│       ├── 007_create_chat_sessions.up.sql
-│       └── 008_create_chat_messages.up.sql
-│
-├── models/
-│   ├── user.go                    # User, OAuthAccount structs
-│   ├── token.go                   # RefreshToken, VerificationToken, PasswordResetToken
-│   ├── document.go                # Document struct
-│   └── chat.go                    # ChatSession, ChatMessage structs
-│
-├── handlers/
-│   ├── auth.go                    # Register, Login, Logout, Refresh, VerifyEmail, ForgotPassword, ResetPassword, GoogleOAuth, GoogleCallback
-│   ├── users.go                   # GetMe, UpdateMe, DeleteMe
-│   ├── documents.go               # Upload, List, Get, Delete
-│   ├── chat.go                    # CreateSession, ListSessions, GetMessages, Chat, StreamChat, DeleteSession
-│   └── search.go                  # Search (debug)
-│
-├── services/
-│   ├── auth/
-│   │   ├── auth.go                # AuthService implementation
-│   │   ├── jwt.go                 # JWT generation, validation, claims
-│   │   └── oauth.go               # Google OAuth client, token exchange
-│   ├── user/
-│   │   └── user.go                # UserService implementation
-│   ├── chat/
-│   │   └── chat.go                # ChatService implementation
-│   └── email/
-│       ├── email.go               # EmailService interface + SMTP implementation
-│       └── templates/             # HTML email templates
-│           ├── verification.html
-│           ├── password_reset.html
-│           └── welcome.html
-│
-├── rag/
-│   └── pipeline.go                # RAGPipeline: IngestDocument, Search, Answer, StreamAnswer
-│
-├── chunker/
-│   └── chunker.go                 # Split text into overlapping chunks
-│
-├── embeddings/
-│   └── embeddings.go              # OllamaEmbeddingClient: Embed(text) → []float32
-│
-├── vectorstore/
-│   └── qdrant.go                  # QdrantClient: Upsert, Search, Delete, EnsureCollection
-│
-└── middleware/
-    ├── auth.go                    # JWTAuth middleware
-    ├── cors.go                    # CORS headers
-    ├── ratelimit.go               # Token bucket rate limiter per IP
-    ├── logger.go                  # Structured request logging
-    └── requestid.go               # Inject X-Request-ID header
+```mermaid
+graph LR
+    subgraph Server
+        CMD[cmd/main.go]
+        subgraph Internal
+            APP[app]
+            CFG[config]
+            DB_LAYER[db]
+            subgraph Modules
+                AUTH[auth]
+                CHAT[chat]
+                DOCS[documents]
+            end
+            RAG[rag-engine]
+            SRV[server]
+        end
+    end
+    subgraph Web
+        FE_SRC[src]
+    end
+
+    CMD --> APP
+    APP --> CFG & DB_LAYER & Modules & SRV
+    Modules --> RAG
+    SRV --> Modules
 ```
 
 ---
@@ -101,27 +57,26 @@ vai/
 ### User
 
 ```go
-// models/user.go
-
 type User struct {
-    ID           uuid.UUID `db:"id"`
-    Email        string    `db:"email"`
-    PasswordHash *string   `db:"password_hash"` // NULL for OAuth-only users
-    DisplayName  string    `db:"display_name"`
-    AvatarURL    *string   `db:"avatar_url"`
-    IsVerified   bool      `db:"is_verified"`
-    CreatedAt    time.Time `db:"created_at"`
-    UpdatedAt    time.Time `db:"updated_at"`
+    ID        uuid.UUID `db:"id" json:"id"`
+    FirstName string    `db:"first_name" json:"first_name"`
+    LastName  string    `db:"last_name" json:"last_name"`
+    Email     string    `db:"email" json:"email"`
+    Password  Password  `db:"-" json:"-"`
+    IsActive  bool      `db:"is_active" json:"is_active"`
+    CreatedAt time.Time `db:"created_at" json:"created_at"`
+}
+
+type Password struct {
+    Hash []byte `db:"password"`
+    Text *string
 }
 
 type OAuthAccount struct {
     ID             uuid.UUID  `db:"id"`
     UserID         uuid.UUID  `db:"user_id"`
-    Provider       string     `db:"provider"`        // "google"
+    Provider       string     `db:"provider"`
     ProviderUserID string     `db:"provider_user_id"`
-    AccessToken    *string    `db:"access_token"`
-    RefreshToken   *string    `db:"refresh_token"`
-    ExpiresAt      *time.Time `db:"expires_at"`
     CreatedAt      time.Time  `db:"created_at"`
 }
 ```
@@ -130,15 +85,6 @@ type OAuthAccount struct {
 
 ```go
 // models/token.go
-
-type RefreshToken struct {
-    ID        uuid.UUID `db:"id"`
-    UserID    uuid.UUID `db:"user_id"`
-    TokenHash string    `db:"token_hash"` // SHA-256 hex of the random token
-    ExpiresAt time.Time `db:"expires_at"`
-    Revoked   bool      `db:"revoked"`
-    CreatedAt time.Time `db:"created_at"`
-}
 
 type VerificationToken struct {
     ID        uuid.UUID `db:"id"`
@@ -162,84 +108,82 @@ type PasswordResetToken struct {
 ### Document
 
 ```go
-// models/document.go
+// internal/modules/documents/model.go
 
 type Document struct {
-    ID             string    `db:"id"`              // slug: "my-document"
-    UserID         uuid.UUID `db:"user_id"`
-    Source         string    `db:"source"`          // original filename
-    ChunkCount     int       `db:"chunk_count"`
-    SizeBytes      int64     `db:"size_bytes"`
-    CollectionName string    `db:"collection_name"` // "user_<userID>"
-    CreatedAt      time.Time `db:"created_at"`
+    ID           uuid.UUID `json:"id"`
+    OwnerID      uuid.UUID `json:"owner_id"`
+    Name         string    `json:"name"`
+    OriginalName string    `json:"original_name"`
+    Size         int64     `json:"size"`
+    MimeType     string    `json:"mime_type"`
+    Status       string    `json:"status"` // "draft", "processing", "ready", "failed"
+    CreatedAt    time.Time `json:"created_at"`
+    UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type DocumentChunk struct {
+    Text      string `json:"Text"`
+    Index     int    `json:"Index"`
+    StartChar int    `json:"StartChar"`
+    EndChar   int    `json:"EndChar"`
 }
 ```
 
-### Chat
+
+### Conversation
 
 ```go
-// models/chat.go
+// internal/modules/chat/model.go
 
-type ChatSession struct {
-    ID         uuid.UUID  `db:"id"`
-    UserID     uuid.UUID  `db:"user_id"`
-    Title      string     `db:"title"`
-    DocumentID *string    `db:"document_id"` // optional document scope
-    CreatedAt  time.Time  `db:"created_at"`
-    UpdatedAt  time.Time  `db:"updated_at"`
+type Conversation struct {
+    ID         uuid.UUID  `json:"id"`
+    UserID     uuid.UUID  `json:"user_id"`
+    Title      string     `json:"title"`
+    DocumentID *uuid.UUID `json:"document_id"`
+    CreatedAt  time.Time  `json:"created_at"`
+    UpdatedAt  time.Time  `json:"updated_at"`
 }
 
-type ChatMessage struct {
-    ID         uuid.UUID `db:"id"`
-    SessionID  uuid.UUID `db:"session_id"`
-    Role       string    `db:"role"`       // "user" | "assistant"
-    Content    string    `db:"content"`
-    TokensUsed *int      `db:"tokens_used"`
-    CreatedAt  time.Time `db:"created_at"`
+type Message struct {
+    ID             uuid.UUID `json:"id"`
+    ConversationID uuid.UUID `json:"conversation_id"`
+    Role           string    `json:"role"`
+    Content        string    `json:"content"`
+    CreatedAt      time.Time `json:"created_at"`
 }
 ```
 
 ### JWT Claims
 
 ```go
-// services/auth/jwt.go
-
 type JWTClaims struct {
-    UserID     string `json:"sub"`
-    Email      string `json:"email"`
-    IsVerified bool   `json:"verified"`
+    UserID    string `json:"sub"`
+    Email     string `json:"email"`
     jwt.RegisteredClaims
 }
 
-// Access token: HS256, 15-minute TTL
-// Signed with env JWT_SECRET (min 32 chars)
+// Access token: HS256, 90-day TTL
 ```
 
 ---
 
 ## Service Interfaces
 
-### AuthService
-
 ```go
-// services/auth/auth.go
-
 type AuthService interface {
-    Register(ctx context.Context, email, password, displayName string) (*models.User, error)
-    Login(ctx context.Context, email, password string) (*TokenPair, error)
-    Logout(ctx context.Context, refreshToken string) error
-    RefreshTokens(ctx context.Context, refreshToken string) (*TokenPair, error)
+    Register(ctx context.Context, payload RegisterPayload) (*models.User, error)
+    Login(ctx context.Context, payload AuthenticatePayload) (string, error)
+    Logout(ctx context.Context) error
     VerifyEmail(ctx context.Context, token string) error
-    RequestPasswordReset(ctx context.Context, email string) error
-    ResetPassword(ctx context.Context, token, newPassword string) error
-    OAuthCallback(ctx context.Context, provider, code, state string) (*TokenPair, error)
+    OAuthLogin(ctx context.Context, provider, code string) (string, error)
 }
 
-type TokenPair struct {
-    AccessToken  string
-    RefreshToken string
-    AccessExpiry  time.Time
-    RefreshExpiry time.Time
+type RegisterPayload struct {
+    FirstName string `json:"first_name"`
+    LastName  string `json:"last_name"`
+    Email     string `json:"email"`
+    Password  string `json:"password"`
 }
 ```
 
@@ -255,23 +199,19 @@ type UserService interface {
 }
 
 type UpdateUserRequest struct {
-    DisplayName *string `json:"display_name"`
+    FirstName   string  `json:"first_name"`
+    LastName    string  `json:"last_name"`
     AvatarURL   *string `json:"avatar_url"`
 }
 ```
 
-### ChatService
-
 ```go
-// services/chat/chat.go
-
-type ChatService interface {
-    CreateSession(ctx context.Context, userID uuid.UUID, title string, documentID *string) (*models.ChatSession, error)
-    ListSessions(ctx context.Context, userID uuid.UUID) ([]models.ChatSession, error)
-    GetSession(ctx context.Context, userID, sessionID uuid.UUID) (*models.ChatSession, error)
-    DeleteSession(ctx context.Context, userID, sessionID uuid.UUID) error
-    AddMessage(ctx context.Context, sessionID uuid.UUID, role, content string, tokens *int) (*models.ChatMessage, error)
-    GetMessages(ctx context.Context, userID, sessionID uuid.UUID) ([]models.ChatMessage, error)
+type ConversationService interface {
+    Create(ctx context.Context, userID uuid.UUID, payload StartConversationDTO) (*models.Conversation, error)
+    List(ctx context.Context, userID uuid.UUID) ([]models.Conversation, error)
+    Get(ctx context.Context, userID, id uuid.UUID) (*models.Conversation, error)
+    Delete(ctx context.Context, userID, id uuid.UUID) error
+    AddMessage(ctx context.Context, conversationID uuid.UUID, payload SendMessageDTO) (*models.Message, error)
 }
 ```
 
@@ -287,30 +227,17 @@ type EmailService interface {
 }
 ```
 
-### RAGPipeline
-
 ```go
-// rag/pipeline.go
-
 type RAGPipeline interface {
-    IngestDocument(ctx context.Context, userID uuid.UUID, documentID, source, text string) (*IngestResult, error)
-    Search(ctx context.Context, userID uuid.UUID, query string, topK int, documentID *string) ([]SearchResult, error)
-    Answer(ctx context.Context, userID uuid.UUID, question string, topK int, documentID *string) (string, error)
-    StreamAnswer(ctx context.Context, userID uuid.UUID, question string, topK int, documentID *string, w io.Writer) error
-    DeleteDocument(ctx context.Context, userID uuid.UUID, documentID string) error
-}
-
-type IngestResult struct {
-    DocumentID string `json:"document_id"`
-    ChunkCount int    `json:"chunks"`
-    Source     string `json:"source"`
+    Ingest(ctx context.Context, documentID uuid.UUID, text string) error
+    Search(ctx context.Context, userID uuid.UUID, query string, topK int, documentID *uuid.UUID) ([]SearchResult, error)
+    StreamAnswer(ctx context.Context, userID uuid.UUID, conversationID uuid.UUID, question string, w io.Writer) error
 }
 
 type SearchResult struct {
-    DocumentID string  `json:"document_id"`
-    ChunkText  string  `json:"text"`
-    Score      float64 `json:"score"`
-    ChunkIndex int     `json:"chunk_index"`
+    DocumentID uuid.UUID `json:"document_id"`
+    ChunkText  string    `json:"text"`
+    Score      float64   `json:"score"`
 }
 ```
 
@@ -388,16 +315,13 @@ type Condition struct {
 ```
 function Split(text, chunkSize, overlap):
     chunks = []
-    start = 0
-    index = 0
-    while start < len(text):
-        end = min(start + chunkSize, len(text))
-        chunk = text[start:end]
-        chunks.append(Chunk{Text: chunk, Index: index, Start: start, End: end})
-        start = start + chunkSize - overlap  // move forward by (size - overlap)
-        index++
-    return chunks
+    splitter = go_chunker.NewSplitter(size=chunkSize, overlap=overlap)
+    contentChunks = splitter.Split(text)
+    return contentChunks
 ```
+
+**Note:** The system utilizes `github.com/ABDELRAHMAN-ELRAYES/go-chunker` for standardized, overlap-aware text splitting.
+
 
 **Example:** text of 1200 chars, size=500, overlap=100:
 
@@ -419,26 +343,30 @@ func pointID(documentID string, chunkIndex int) string {
 }
 ```
 
-### Refresh Token Rotation
+### Account Activation Algorithm
 
 ```go
-func (s *authService) RefreshTokens(ctx, rawToken string) (*TokenPair, error) {
-    hash := sha256hex(rawToken)
+func (s *authService) VerifyEmail(ctx context.Context, token string) error {
+    // 1. Compute SHA256 of token (if stored hashed) or query directly
+    // 2. Lookup verification_token in DB
+    // 4. Update users table: is_active = true
+    // 5. Delete or mark used the verification_token
+}
+```
 
-    token, err := s.db.GetRefreshTokenByHash(ctx, hash)
-    if err != nil || token.Revoked || token.ExpiresAt.Before(time.Now()) {
-        return nil, ErrInvalidToken
-    }
+### Lazy Embedding Algorithm
 
-    // Rotate: revoke old
-    s.db.RevokeRefreshToken(ctx, token.ID)
-
-    // Issue new pair
-    newRefresh := generateSecureToken(32)
-    s.db.InsertRefreshToken(ctx, token.UserID, sha256hex(newRefresh), 7*24*time.Hour)
-    newJWT := generateJWT(token.UserID, 15*time.Minute)
-
-    return &TokenPair{AccessToken: newJWT, RefreshToken: newRefresh}, nil
+```go
+func (s *ragService) Search(ctx context.Context, userID, docID uuid.UUID, query string) ([]SearchResult, error) {
+    // 1. SELECT status FROM documents WHERE id = docID
+    // 2. If 'draft':
+    //    a. UPDATE status = 'processing'
+    //    b. Read chunks from filesystem /uploads/chunks/{docID}/
+    //    c. For each chunk: call Ollama /api/embeddings
+    //    d. Batch upsert vectors into Qdrant 'documents' collection
+    //    e. Payload: { "owner_id": userID, "document_id": docID, "text": chunkText }
+    //    f. UPDATE status = 'ready'
+    // 3. Run Qdrant search with Filter: payload.owner_id == userID
 }
 ```
 
@@ -523,11 +451,7 @@ func writeServiceError(w http.ResponseWriter, err error) {
 
 ```json
 {
-  "error": {
-    "code": "INVALID_CREDENTIALS",
-    "message": "Email or password is incorrect",
-    "request_id": "req_01HXYZ..."
-  }
+  "error": "Detailed error message here"
 }
 ```
 
@@ -541,7 +465,7 @@ All DB operations use `pgx/v5` directly (no ORM). Queries are written as plain S
 // Example: Get user by email
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
     row := q.db.QueryRow(ctx, `
-        SELECT id, email, password_hash, display_name, avatar_url, is_verified, created_at, updated_at
+        SELECT id, email, password_hash, first_name, last_name, avatar_url, is_active, created_at, updated_at
         FROM users
         WHERE email = $1
     `, email)
@@ -566,47 +490,15 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (*models.Use
 ## Configuration
 
 ```go
-// config/config.go
-
 type Config struct {
-    // Server
     Port string `env:"PORT" default:"8080"`
 
-    // Database
     DatabaseURL string `env:"DATABASE_URL" required:"true"`
 
-    // JWT
-    JWTSecret           string        `env:"JWT_SECRET" required:"true"`
-    JWTAccessTokenTTL   time.Duration `env:"JWT_ACCESS_TTL" default:"15m"`
-    JWTRefreshTokenTTL  time.Duration `env:"JWT_REFRESH_TTL" default:"168h"` // 7 days
+    JWTSecret   string        `env:"JWT_SECRET" required:"true"`
+    JWTTTL      time.Duration `env:"JWT_TTL" default:"2160h"` // 90 days
 
-    // Ollama
     OllamaURL       string `env:"OLLAMA_URL" default:"http://localhost:11434"`
-    EmbeddingModel  string `env:"EMBEDDING_MODEL" default:"nomic-embed-text:v1.5"`
-    ChatModel       string `env:"CHAT_MODEL" default:"llama2.3:3b"`
-
-    // Qdrant
-    QdrantURL   string `env:"QDRANT_URL" default:"http://localhost:6333"`
-    VectorSize  int    `env:"VECTOR_SIZE" default:"768"`
-
-    // Chunker
-    ChunkSize    int `env:"CHUNK_SIZE" default:"500"`
-    ChunkOverlap int `env:"CHUNK_OVERLAP" default:"100"`
-
-    // OAuth
-    GoogleClientID     string `env:"GOOGLE_CLIENT_ID"`
-    GoogleClientSecret string `env:"GOOGLE_CLIENT_SECRET"`
-    GoogleRedirectURL  string `env:"GOOGLE_REDIRECT_URL"`
-
-    // Email
-    SMTPHost     string `env:"SMTP_HOST"`
-    SMTPPort     int    `env:"SMTP_PORT" default:"587"`
-    SMTPUsername string `env:"SMTP_USERNAME"`
-    SMTPPassword string `env:"SMTP_PASSWORD"`
-    SMTPFrom     string `env:"SMTP_FROM"`
-
-    // App
-    AppURL      string `env:"APP_URL" default:"http://localhost:8080"`
-    RateLimitRPM int   `env:"RATE_LIMIT_RPM" default:"20"`
+    QdrantURL       string `env:"QDRANT_URL" default:"http://localhost:6333"`
 }
 ```

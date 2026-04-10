@@ -1,8 +1,11 @@
-# API Specification
+# API Specification — Vai
+**Version:** 1.0  
+**Date:** April 2026  
+
 ## Vai — REST API Reference
 
 **Version:** 1.0  
-**Base URL:** `http://localhost:8080`  
+**Base URL:** `http://localhost:3000/api/v1`  
 **Auth:** HTTP-only cookie (`access_token`) set on login  
 **Content-Type:** `application/json` (unless noted)
 
@@ -13,23 +16,20 @@
 1. [Authentication](#authentication)
 2. [Error Format](#error-format)
 3. [Auth Endpoints](#auth-endpoints)
-4. [User Endpoints](#user-endpoints)
-5. [Document Endpoints](#document-endpoints)
-6. [Chat Endpoints](#chat-endpoints)
-7. [Search Endpoint](#search-endpoint)
-8. [OpenAPI Summary](#openapi-summary)
+4. [Document Endpoints](#document-endpoints)
+5. [Conversation Endpoints](#conversation-endpoints)
+6. [OpenAPI Summary](#openapi-summary)
 
 ---
 
 ## Authentication
 
-All endpoints except `/auth/*` require a valid JWT in the `access_token` HTTP-only cookie.
+All endpoints except `/auth/register` and `/auth/login` require a valid JWT in the `access_token` HTTP-only cookie.
 
-The cookie is set automatically on login or OAuth callback. When the access token expires (15 min), call `POST /auth/refresh` with the `refresh_token` cookie to receive a new token pair.
+The cookie is set automatically on login or OAuth callback with a 90-day expiry. There are no refresh tokens — the session remains valid as long as the cookie persists.
 
 ```
-Cookie: access_token=<JWT>; HttpOnly; Secure; SameSite=Strict
-Cookie: refresh_token=<token>; HttpOnly; Secure; SameSite=Strict; Path=/auth/refresh
+Cookie: access_token=<JWT>; HttpOnly; SameSite=Lax
 ```
 
 ---
@@ -40,11 +40,7 @@ All errors return a consistent JSON envelope:
 
 ```json
 {
-  "error": {
-    "code": "ERROR_CODE",
-    "message": "Human-readable description",
-    "request_id": "req_01HXYZ..."
-  }
+  "error": "Human-readable description of the error"
 }
 ```
 
@@ -73,10 +69,6 @@ All errors return a consistent JSON envelope:
       "email": "must be a valid email address",
       "password": "must be at least 8 characters"
     }
-  }
-}
-```
-
 ---
 
 ## Auth Endpoints
@@ -88,36 +80,40 @@ Register a new user account. Sends a verification email.
 **Request**
 ```json
 {
+  "first_name": "Alice",
+  "last_name": "Smith",
   "email": "alice@example.com",
-  "password": "SecurePass123!",
-  "display_name": "Alice"
+  "password": "SecurePass123!"
 }
 ```
 
 | Field | Type | Required | Validation |
 |-------|------|----------|-----------|
-| `email` | string | ✅ | Valid email format, max 320 chars |
-| `password` | string | ✅ | Min 8 chars, at least 1 uppercase, 1 digit |
-| `display_name` | string | ✅ | 2–100 chars |
+| `first_name` | string | ✅ | Max 255 chars |
+| `last_name` | string | ✅ | Max 255 chars |
+| `email` | string | ✅ | Valid email format, max 255 chars |
+| `password` | string | ✅ | 3–72 chars |
 
 **Response `201 Created`**
 ```json
 {
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "email": "alice@example.com",
-  "display_name": "Alice",
-  "is_verified": false,
-  "created_at": "2025-06-01T10:00:00Z"
+  "user": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "first_name": "Alice",
+    "last_name": "Smith",
+    "email": "alice@example.com",
+    "is_active": false,
+    "created_at": "2026-04-01T10:00:00Z"
+  },
+  "token": "... activation token ..."
 }
 ```
-
-**Errors:** `409` email already exists · `422` validation error
 
 ---
 
 ### `POST /auth/login`
 
-Authenticate with email and password. Sets JWT + refresh token cookies.
+Authenticate with email and password. Sets the `access_token` cookie.
 
 **Request**
 ```json
@@ -130,77 +126,43 @@ Authenticate with email and password. Sets JWT + refresh token cookies.
 **Response `200 OK`**
 ```json
 {
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "email": "alice@example.com",
-  "display_name": "Alice",
-  "is_verified": true
+  "user": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "first_name": "Alice",
+    "last_name": "Smith",
+    "email": "alice@example.com",
+    "is_active": true
+  },
+  "token": "... jwt ..."
 }
 ```
 
-**Response Headers**
+**Response Header**
 ```
-Set-Cookie: access_token=<jwt>; HttpOnly; Secure; SameSite=Strict; Max-Age=900; Path=/
-Set-Cookie: refresh_token=<token>; HttpOnly; Secure; SameSite=Strict; Max-Age=604800; Path=/auth/refresh
+Set-Cookie: access_token=<jwt>; HttpOnly; SameSite=Lax; Max-Age=7776000; Path=/
 ```
-
-**Errors:** `401` invalid credentials
 
 ---
 
 ### `POST /auth/logout`
 
-Revoke the current refresh token and clear both cookies.
-
-**Response `204 No Content`**
-
-**Response Headers**
-```
-Set-Cookie: access_token=; Max-Age=0; HttpOnly
-Set-Cookie: refresh_token=; Max-Age=0; HttpOnly
-```
-
----
-
-### `POST /auth/refresh`
-
-Issue a new JWT using the refresh token. Rotates the refresh token.
-
-> Reads the `refresh_token` cookie automatically — no request body needed.
+Clear the session cookie.
 
 **Response `200 OK`**
-```json
-{
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "email": "alice@example.com",
-  "display_name": "Alice",
-  "is_verified": true
-}
-```
-
-**Response Headers:** New `Set-Cookie` headers with rotated tokens.
-
-**Errors:** `401` refresh token invalid, expired, or revoked
 
 ---
 
-### `GET /auth/verify`
+### `POST /auth/activate/{token}`
 
-Verify a user's email address using the token from the verification email.
+Activate a user's account using the token from the verification email.
 
-**Query Parameters**
+**Path Parameters**
 
 | Param | Type | Required | Description |
 |-------|------|----------|-------------|
-| `token` | string | ✅ | HMAC-SHA256 token from email |
+| `token` | string | ✅ | Activation token from email |
 
-**Response `200 OK`**
-```json
-{
-  "message": "Email verified successfully"
-}
-```
-
-**Errors:** `401` token invalid, expired, or already used
+**Response `204 No Content`**
 
 ---
 
@@ -267,63 +229,16 @@ OAuth 2.0 callback. Validates state, exchanges code, upserts user, sets cookies.
 **Response `302 Found`**
 ```
 Location: /
-Set-Cookie: access_token=...; Set-Cookie: refresh_token=...
+Set-Cookie: access_token=...
 ```
 
 **Errors:** `400` state mismatch (CSRF) · `502` Google token exchange failed
 
 ---
 
-## User Endpoints
-
-> All require authentication (`access_token` cookie).
-
-### `GET /users/me`
-
-Get the authenticated user's profile.
-
-**Response `200 OK`**
-```json
-{
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "email": "alice@example.com",
-  "display_name": "Alice",
-  "avatar_url": "https://lh3.googleusercontent.com/...",
-  "is_verified": true,
-  "created_at": "2025-06-01T10:00:00Z",
-  "updated_at": "2025-06-01T10:00:00Z"
-}
-```
-
----
-
-### `PATCH /users/me`
-
-Update the authenticated user's profile. All fields optional.
-
-**Request**
-```json
-{
-  "display_name": "Alice Smith",
-  "avatar_url": "https://example.com/avatar.png"
-}
-```
-
-**Response `200 OK`** — Updated user object (same shape as `GET /users/me`).
-
----
-
-### `DELETE /users/me`
-
-Permanently delete the authenticated user account. Cascades to all documents (Qdrant collection deleted), chat sessions, messages, and tokens.
-
-**Response `204 No Content`** — Cookies cleared.
-
----
-
 ## Document Endpoints
 
-> All require authentication. Document upload additionally requires email verification.
+> All require authentication.
 
 ### `POST /documents/upload`
 
@@ -347,217 +262,136 @@ file=@/path/to/document.txt
 }
 ```
 
-**Errors:** `403` email not verified · `413` file too large · `422` unsupported file type
-
 ---
 
-### `GET /documents`
+### `GET /documents` (Planned)
 
 List all documents owned by the authenticated user.
 
-**Response `200 OK`**
-```json
-{
-  "documents": [
-    {
-      "id": "my-document",
-      "source": "my-document.txt",
-      "chunk_count": 14,
-      "size_bytes": 8192,
-      "created_at": "2025-06-01T10:00:00Z"
-    }
-  ],
-  "total": 1
-}
-```
-
 ---
 
-### `GET /documents/{id}`
+### `GET /documents/{id}` (Planned)
 
 Get metadata for a specific document.
 
-**Path Parameters:** `id` — document ID (slug)
-
-**Response `200 OK`** — Single document object (same shape as list item).
-
-**Errors:** `404` not found or not owned by user
-
 ---
 
-### `DELETE /documents/{id}`
+### `DELETE /documents/{id}` (Planned)
 
 Delete a document and all its Qdrant vectors.
 
-**Response `204 No Content`**
-
-**Errors:** `404` not found or not owned by user
-
 ---
 
-## Chat Endpoints
+## Conversation Endpoints
 
 > All require authentication.
 
-### `POST /chat/sessions`
+### `POST /conversations`
 
-Create a new chat session. Optionally scoped to a specific document.
+Create a new chat conversation. Optionally scoped to a specific document.
 
 **Request**
 ```json
 {
   "title": "Research on Auth",
-  "document_id": "my-document"
+  "document_id": "uuid-..."
 }
 ```
-
-| Field | Type | Required | Notes |
-|-------|------|----------|-------|
-| `title` | string | ✅ | Max 255 chars |
-| `document_id` | string | ❌ | Scopes all queries to one document |
 
 **Response `201 Created`**
 ```json
 {
-  "id": "abc123-...",
-  "user_id": "550e8400-...",
+  "id": "uuid-...",
+  "owner_id": "uuid-...",
   "title": "Research on Auth",
-  "document_id": "my-document",
-  "created_at": "2025-06-01T10:00:00Z",
-  "updated_at": "2025-06-01T10:00:00Z"
+  "document_id": "uuid-...",
+  "created_at": "...",
+  "updated_at": "..."
 }
 ```
 
 ---
 
-### `GET /chat/sessions`
+### `GET /conversations`
 
-List all chat sessions for the authenticated user, ordered by most recently updated.
+List all conversations for the authenticated user.
 
 **Response `200 OK`**
 ```json
-{
-  "sessions": [
-    {
-      "id": "abc123-...",
-      "title": "Research on Auth",
-      "document_id": "my-document",
-      "updated_at": "2025-06-01T11:00:00Z"
-    }
-  ]
-}
+[
+  {
+    "id": "uuid-...",
+    "title": "Research on Auth",
+    "updated_at": "..."
+  }
+]
 ```
 
 ---
 
-### `GET /chat/sessions/{id}/messages`
+### `GET /conversations/{id}`
 
-Get the full message history for a session.
+Get a specific conversation and its messages.
 
 **Response `200 OK`**
 ```json
 {
-  "session_id": "abc123-...",
+  "id": "uuid-...",
+  "title": "Research on Auth",
   "messages": [
     {
-      "id": "msg-uuid-1",
       "role": "user",
-      "content": "How does authentication work?",
-      "created_at": "2025-06-01T10:05:00Z"
+      "content": "Hello",
+      "created_at": "..."
     },
     {
-      "id": "msg-uuid-2",
       "role": "assistant",
-      "content": "Based on the documents, authentication works by...",
-      "tokens_used": 142,
-      "created_at": "2025-06-01T10:05:04Z"
+      "content": "Hi there!",
+      "created_at": "..."
     }
   ]
 }
 ```
 
-**Errors:** `403` session not owned by user · `404` session not found
-
 ---
 
-### `DELETE /chat/sessions/{id}`
+### `POST /conversations/{id}`
 
-Delete a chat session and all its messages.
-
-**Response `204 No Content`**
-
----
-
-### `POST /chat`
-
-Ask a question and receive a complete (non-streaming) answer.
+Post a message to a conversation. Supports streaming or non-streaming based on `Accept` header.
 
 **Request**
 ```json
 {
-  "question": "How does authentication work?",
-  "top_k": 5,
-  "document_id": "my-document",
-  "session_id": "abc123-..."
+  "content": "How does RAG work?",
+  "top_k": 5
 }
 ```
 
-| Field | Type | Required | Default | Notes |
-|-------|------|----------|---------|-------|
-| `question` | string | ✅ | — | Max 2000 chars |
-| `top_k` | int | ❌ | `5` | 1–20. Chunks to retrieve |
-| `document_id` | string | ❌ | — | Filter to one document |
-| `session_id` | string | ❌ | — | Auto-created if omitted |
-
-**Response `200 OK`**
+**Response (Non-streaming)**
 ```json
 {
-  "answer": "Based on the documents, authentication works by issuing a JWT...",
-  "session_id": "abc123-...",
-  "message_id": "msg-uuid-2",
-  "chunks_used": 5
+  "role": "assistant",
+  "content": "RAG works by...",
+  "created_at": "..."
 }
+```
+
+**Response (Streaming - SSE)**
+```
+data: R
+data: AG
+data:  works
+data: [DONE]
 ```
 
 ---
 
-### `GET /chat/stream`
+### `DELETE /conversations/{id}`
 
-Ask a question and receive a streaming response via Server-Sent Events.
+Delete a conversation.
 
-**Query Parameters**
+**Response `204 No Content`**
 
-| Param | Type | Required | Default |
-|-------|------|----------|---------|
-| `question` | string | ✅ | — |
-| `top_k` | int | ❌ | `5` |
-| `document_id` | string | ❌ | — |
-| `session_id` | string | ❌ | — |
-
-**Example**
-```bash
-curl -N "http://localhost:8080/chat/stream?question=How+does+auth+work&top_k=5" \
-  --cookie "access_token=<jwt>"
-```
-
-**Response** `Content-Type: text/event-stream`
-```
-data: Based
-
-data:  on
-
-data:  the
-
-data:  documents,
-
-data:  authentication
-
-data:  works
-
-data:  by...
-
-data: [DONE]
-```
 
 ---
 
@@ -611,7 +445,7 @@ info:
   description: Privacy-first AI document assistant REST API
 
 servers:
-  - url: http://localhost:8080
+  - url: http://localhost:3000/api/v1
     description: Local development
 
 components:
@@ -625,23 +459,16 @@ security:
   - cookieAuth: []
 
 paths:
-  /auth/register:     { post: { ... } }
-  /auth/login:        { post: { ... } }
-  /auth/logout:       { post: { ... } }
-  /auth/refresh:      { post: { ... } }
-  /auth/verify:       { get: { ... } }
-  /auth/forgot-password: { post: { ... } }
-  /auth/reset-password:  { post: { ... } }
-  /auth/google:         { get: { ... } }
-  /auth/google/callback: { get: { ... } }
-  /users/me:          { get: { ... }, patch: { ... }, delete: { ... } }
-  /documents/upload:  { post: { ... } }
-  /documents:         { get: { ... } }
-  /documents/{id}:    { get: { ... }, delete: { ... } }
-  /chat/sessions:     { post: { ... }, get: { ... } }
-  /chat/sessions/{id}/messages: { get: { ... } }
-  /chat/sessions/{id}: { delete: { ... } }
-  /chat:              { post: { ... } }
-  /chat/stream:       { get: { ... } }
-  /search:            { post: { ... } }
+  /auth/register:         { post: { ... } }
+  /auth/activate/{token}: { post: { ... } }
+  /auth/login:            { post: { ... } }
+  /auth/logout:           { post: { ... } }
+  /auth/me:               { get: { ... } }
+  /auth/google/login:     { get: { ... } }
+  /auth/google/callback:  { get: { ... } }
+  /documents/upload:      { post: { ... } }
+  /documents:             { get: { ... } }
+  /documents/{id}:        { get: { ... }, delete: { ... } }
+  /conversations:         { post: { ... }, get: { ... } }
+  /conversations/{id}:    { get: { ... }, post: { ... }, patch: { ... }, delete: { ... } }
 ```

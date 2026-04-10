@@ -1,4 +1,6 @@
 # Testing Plan — Vai (Privacy-First AI Assistant)
+**Version:** 1.0  
+**Date:** April 2026  
 
 ## 1. Executive Summary
 This document outlines the testing strategy for Vai, a self-hosted AI document assistant. As the project currently lacks automated tests, this plan establishes a foundation for achieving >= 70% coverage as per NFR requirements, ensuring reliability, security, and performance.
@@ -10,12 +12,11 @@ This document outlines the testing strategy for Vai, a self-hosted AI document a
 ### 2.1. Unit Testing
 **Objective:** Verify individual functions and logic in isolation.
 - **Backend (Go):**
-    - **Tools:** Standard `testing` package, `testify/assert`, `stretchr/testify/mock`.
+    - **Tools:** Standard `testing` package, `testify`.
     - **Scope:**
-        - `pkg/utils`: Truncation, string manipulation.
-        - `internal/validator`: Custom validation rules.
-        - `internal/modules/ai`: Prompt rendering logic, token collection.
-        - `service` layers: Business logic with mocked repositories.
+        - Domain modules (`internal/modules/*`).
+        - Core engine (`internal/rag-engine`, `internal/chunker`).
+        - Service layers: Business logic with mocked repositories.
 - **Frontend (React):**
     - **Tools:** `Vitest`, `React Testing Library`.
     - **Scope:**
@@ -29,7 +30,7 @@ This document outlines the testing strategy for Vai, a self-hosted AI document a
 - **Key Scenarios:**
     - **Authentication Flow:** Registration -> Email Verification -> Login -> Token Rotation.
     - **Document Pipeline:** Multipart upload -> Text extraction -> Chunking -> Qdrant upsert -> Metadata persistence.
-    - **RAG Flow:** Query embedding -> Vector search -> Prompt assembly -> LLM streaming (mocked Ollama).
+    - **RAG Flow:** Query embedding -> Vector search -> Prompt assembly -> LLM streaming (using actual local Ollama or mock).
     - **Database Repositories:** Verifying SQL queries and migrations.
 
 ### 2.3. End-to-End (E2E) Testing

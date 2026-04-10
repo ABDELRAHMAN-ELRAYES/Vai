@@ -8,7 +8,7 @@ import (
 
 func Load() Config {
 	return Config{
-		Addr:        env.GetStringEnv("ADDR", ":8080"),
+		Addr:        env.GetStringEnv("ADDR", ":3000"),
 		APIURL:      env.GetStringEnv("API_URL", "localhost:3000"),
 		FrontendURL: env.GetStringEnv("FRONTEND_URL", "http://localhost:5173"),
 		Env:         env.GetStringEnv("ENV", "development"),
