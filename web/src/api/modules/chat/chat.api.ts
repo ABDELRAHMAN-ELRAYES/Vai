@@ -12,7 +12,7 @@ export const chatApi = {
   startConversation(payload: StartConversationPayload) {
     return apiClient.post<Response>(
       `${ROUTER_PREFIX}/`,
-      { message: payload.message, document_id: payload.document_id },
+      { message: payload.message, document_ids: payload.document_ids },
       {},
       true,
     );
@@ -34,10 +34,10 @@ export const chatApi = {
     return apiClient.get<Conversation>(`${ROUTER_PREFIX}/${id}`);
   },
   
-  sendMessage(id: string, message: string, document_id?: string) {
+  sendMessage(id: string, message: string, documentIds?: string[]) {
     return apiClient.post<Response>(
       `${ROUTER_PREFIX}/${id}`,
-      { message, document_id },
+      { message, document_ids: documentIds },
       {},
       true,
     );

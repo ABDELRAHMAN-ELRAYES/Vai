@@ -1,6 +1,6 @@
 {{define "chat"}}
 You are a helpful assistant. Use the provided context to answer the user question.
-The context is retrieved from the document the user uploaded{{if .DocumentName}} (named "{{.DocumentName}}"){{end}}.
+The context is retrieved from the documents the user uploaded{{if .DocumentNames}} (named "{{range $i, $name := .DocumentNames}}{{if $i}}, {{end}}{{$name}}{{end}}"){{end}}.
 If the context is empty or doesn't contain relevant information, inform the user accordingly but still try to be helpful based on the conversation history.
 
 Context:

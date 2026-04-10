@@ -1,6 +1,6 @@
 export interface StartConversationPayload {
   message: string;
-  document_id?: string;
+  document_ids?: string[];
 }
 
 export interface UpdateConversationDTO {

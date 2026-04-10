@@ -14,9 +14,10 @@ import { toast } from "sonner";
 import { FileCard, type FileEntry } from "@/components/upload/file-card";
 import { documentsApi } from "@/api/modules/documents/documents.api";
 
+const MAX_FILES = 3;
 
 interface ChatInputProps {
-  onSend: (message: string, documentId?: string) => void;
+  onSend: (message: string, documentIds?: string[]) => void;
   isLoading: boolean;
   disabled?: boolean;
 }
@@ -49,16 +50,31 @@ export const ChatInput = memo(
         setIsAuthOpen(true);
         return;
       }
-      // TODO: Send message with files
-      toast.info(`Sending message with ${files.length} attachments...`);
+      // Send message with all successfully uploaded files
+      const documentIds = files
+        .filter((f) => f.status === "done" && f.documentId)
+        .map((f) => f.documentId as string);
 
-      const firstDocumentId = files.find((f) => f.status ===  "done")?.documentId;
-      onSend(input.trim(), firstDocumentId);
+      onSend(input.trim(), documentIds);
       setInput("");
       setFiles([]);
 
+      // ✅ Reset the file input so the same file can be re-selected without a page refresh
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+
       inputRef.current?.focus();
-    }, [input, files, isLoading, disabled, onSend, isAuthenticated, setAuthMode, setIsAuthOpen]);
+    }, [
+      input,
+      files,
+      isLoading,
+      disabled,
+      onSend,
+      isAuthenticated,
+      setAuthMode,
+      setIsAuthOpen,
+    ]);
 
     const handleKeyDown = useCallback(
       (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -78,8 +94,6 @@ export const ChatInput = memo(
       e.preventDefault();
       setIsDragging(true);
       dragCounter.current++;
-
-      console.log(dragCounter.current);
     }, []);
 
     const onDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
@@ -88,30 +102,50 @@ export const ChatInput = memo(
       if (dragCounter.current === 0) {
         setIsDragging(false);
       }
-      console.log(dragCounter.current);
     }, []);
 
     const onDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
       e.preventDefault();
     }, []);
 
-    const onDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      dragCounter.current = 0;
-      setIsDragging(false);
+    const onDrop = useCallback(
+      (e: DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        dragCounter.current = 0;
+        setIsDragging(false);
 
-      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        handleFiles(e.dataTransfer.files);
-      }
-    }, []);
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          handleFiles(e.dataTransfer.files);
+        }
+      },
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [files],
+    );
 
     const handleFiles = (fileList: FileList) => {
-      const newEntries: FileEntry[] = Array.from(fileList).map((file) => ({
+      const incoming = Array.from(fileList);
+      const slotsAvailable = MAX_FILES - files.length;
+
+      if (slotsAvailable <= 0) {
+        toast.error(`You can attach a maximum of ${MAX_FILES} files.`);
+        return;
+      }
+
+      if (incoming.length > slotsAvailable) {
+        toast.warning(
+          `Only ${slotsAvailable} more file${slotsAvailable > 1 ? "s" : ""} can be attached. The rest were ignored.`,
+        );
+      }
+
+      const accepted = incoming.slice(0, slotsAvailable);
+
+      const newEntries: FileEntry[] = accepted.map((file) => ({
         id: Math.random().toString(36).substring(7),
         file,
         status: "queued",
         error: null,
       }));
+
       setFiles((prev) => [...prev, ...newEntries]);
 
       // Start uploading each file
@@ -157,6 +191,8 @@ export const ChatInput = memo(
     const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files.length > 0) {
         handleFiles(e.target.files);
+        // ✅ Reset after selecting so the same file can be picked again next time
+        e.target.value = "";
       }
     };
 
@@ -165,8 +201,15 @@ export const ChatInput = memo(
     };
 
     const triggerFileInput = () => {
+      if (files.length >= MAX_FILES) {
+        toast.error(`You can attach a maximum of ${MAX_FILES} files.`);
+        return;
+      }
       fileInputRef.current?.click();
     };
+
+    const isAtFileLimit = files.length >= MAX_FILES;
+
     return (
       <div
         onDragEnter={onDragEnter}
@@ -181,13 +224,14 @@ export const ChatInput = memo(
           bg-gray-50/80 flex flex-col items-center justify-center gap-3 pointer-events-none"
           >
             <span className="text-gray-400">
-              <CloudDownload />{" "}
+              <CloudDownload />
             </span>
             <span className="text-sm font-medium text-gray-900">
               Drop files to attach
             </span>
           </div>
         )}
+
         {/* Files Preview */}
         {files.length > 0 && (
           <div className="relative w-full">
@@ -217,6 +261,7 @@ export const ChatInput = memo(
             onKeyDown={handleKeyDown}
           />
         </div>
+
         <div className="flex items-center justify-between px-3 pb-3">
           <div className="flex items-center gap-1">
             <input
@@ -227,17 +272,29 @@ export const ChatInput = memo(
               className="hidden"
             />
             <Button
-              className="group flex h-10 items-center justify-center rounded-full bg-transparent px-2 text-black transition-all duration-300 ease-out hover:bg-gray-50 hover:px-4 cursor-pointer"
-              title="Attach file"
+              className={`group flex h-10 items-center justify-center rounded-full bg-transparent px-2 text-black transition-all duration-300 ease-out hover:bg-gray-50 hover:px-4 ${isAtFileLimit ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+              title={
+                isAtFileLimit
+                  ? `Maximum ${MAX_FILES} files allowed`
+                  : "Attach file"
+              }
               onClick={triggerFileInput}
+              disabled={isAtFileLimit}
             >
               <div className="flex items-center justify-center overflow-hidden">
                 <Paperclip className="w-8 h-8" />
                 <span className="max-w-0 opacity-0 transition-all duration-300 ease-out group-hover:ml-1.5 group-hover:max-w-[48px] group-hover:opacity-100 font-medium text-sm whitespace-nowrap">
-                  Upload
+                  {isAtFileLimit ? `${MAX_FILES}/${MAX_FILES}` : "Upload"}
                 </span>
               </div>
             </Button>
+
+            {/* File count indicator */}
+            {files.length > 0 && (
+              <span className="text-xs text-gray-400 ml-1">
+                {files.length}/{MAX_FILES}
+              </span>
+            )}
           </div>
 
           <Button

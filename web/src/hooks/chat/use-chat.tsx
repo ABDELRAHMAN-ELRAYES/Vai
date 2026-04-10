@@ -88,7 +88,7 @@ export const useChat = (id?: string) => {
 
   // Send Message
   const sendMessage = useCallback(
-    async (content: string, documentId?: string) => {
+    async (content: string, documentIds?: string[]) => {
       // Check the user enters a new message
       const messageContent: string = content.trim();
       if (!messageContent) {
@@ -119,8 +119,8 @@ export const useChat = (id?: string) => {
     try {
       // Send the request to the server
       const response = id
-        ? await chatApi.sendMessage(id, messageContent, documentId)
-        : await chatApi.startConversation({ message: messageContent, document_id: documentId });
+        ? await chatApi.sendMessage(id, messageContent, documentIds)
+        : await chatApi.startConversation({ message: messageContent, document_ids: documentIds });
 
       // Create ReadableStream reader and locks the stream to it
       if (!response.body) return;
