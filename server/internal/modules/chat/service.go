@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -44,11 +45,11 @@ func (service *Service) StartConversation(ctx context.Context, payload StartConv
 
 	conv := &Conversation{}
 
-	// Embed the document if provided with the message
-	if payload.DocumentID != "" {
-		err := service.docService.EmbedDocument(ctx, payload.DocumentID, chunksDir)
+	// Embed all documents if provided with the message
+	for _, docID := range payload.DocumentIDs {
+		err := service.docService.EmbedDocument(ctx, docID, chunksDir)
 		if err != nil {
-			service.logger.Errorf("EmbedDocument failed: %s", err)
+			service.logger.Errorf("EmbedDocument failed for %s: %s", docID, err)
 			return nil, nil, nil, err
 		}
 	}
@@ -69,46 +70,54 @@ func (service *Service) StartConversation(ctx context.Context, payload StartConv
 			ConversationID: conv.ID,
 			Content:        payload.Message,
 			Role:           ai.UserRole,
+			DocumentIDs:    payload.DocumentIDs,
 		}
 		err = repo.CreateMessage(ctx, msg)
 		if err != nil {
 			return err
 		}
+
+		// Save message-document associations
+		if err := repo.AddMessageDocuments(ctx, msg.ID, payload.DocumentIDs); err != nil {
+			return err
+		}
+
 		return nil
 	})
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	// 3. Generate + Update a new conversation title
-	// Accordin to the first submitted user message
-	// ! Error, Context Done
-	// go service.handleTitleGeneration(conv.ID, payload.Message)
 
-	// 4. Perform semantic search if DocumentID is provided
+	// 4. Perform scoped semantic search
 	var contextStr string
-	var documentName string
-	if payload.DocumentID != "" {
-		// Fetch document data
-		doc, err := service.docService.GetDocument(ctx, payload.DocumentID)
-		if err != nil {
-			service.logger.Errorf("GetDocument failed: %s", err)
-		}
-		documentName = doc.OriginalName
+	var documentNames []string
 
-		chunks, err := service.docService.Search(ctx, payload.Message, payload.DocumentID, 5)
+	searchIDs := payload.DocumentIDs
+
+	if len(searchIDs) > 0 {
+		// Fetch document names for prompt
+		for _, docID := range searchIDs {
+			doc, err := service.docService.GetDocument(ctx, docID)
+			if err != nil {
+				service.logger.Errorf("GetDocument failed for %s: %s", docID, err)
+				continue
+			}
+			documentNames = append(documentNames, doc.OriginalName)
+		}
+
+		chunks, err := service.docService.Search(ctx, payload.Message, searchIDs, 5)
 		if err != nil {
 			service.logger.Errorf("Search failed: %s", err)
 		}
 		contextStr = strings.Join(chunks, "\n\n")
-
 	}
 
 	// 5. Render the prompt
 	chatPromptData := &ChatPromptData{
-		Messages:     []Message{},
-		UserMessage:  payload.Message,
-		Context:      contextStr,
-		DocumentName: documentName,
+		Messages:      []Message{},
+		UserMessage:   payload.Message,
+		Context:       contextStr,
+		DocumentNames: documentNames,
 	}
 	chatPrompt, err := ai.RenderPrompt(ai.ChatPrompt, chatPromptData)
 	if err != nil {
@@ -256,11 +265,11 @@ func (service *Service) SendMessage(ctx context.Context, payload SendMessagePayl
 		return nil, nil, apierror.ErrUnauthorized
 	}
 
-	// 4. Embed the document if provided with the message
-	if payload.DocumentID != "" {
-		err := service.docService.EmbedDocument(ctx, payload.DocumentID, chunksDir)
+	// 4. Embed all provided documents
+	for _, docID := range payload.DocumentIDs {
+		err := service.docService.EmbedDocument(ctx, docID, chunksDir)
 		if err != nil {
-			service.logger.Errorf("EmbedDocument failed: %s", err)
+			service.logger.Errorf("EmbedDocument failed for %s: %s", docID, err)
 			return nil, nil, err
 		}
 	}
@@ -270,8 +279,22 @@ func (service *Service) SendMessage(ctx context.Context, payload SendMessagePayl
 		ConversationID: payload.ConversationID,
 		Content:        payload.Message,
 		Role:           ai.UserRole,
+		DocumentIDs:    payload.DocumentIDs,
 	}
-	err = service.repo.CreateMessage(ctx, userMsg)
+
+	err = db.WithTx(service.db, ctx, func(tx *sql.Tx) error {
+		repo := service.repo.WithTx(tx)
+
+		if err := repo.CreateMessage(ctx, userMsg); err != nil {
+			return err
+		}
+
+		if err := repo.AddMessageDocuments(ctx, userMsg.ID, payload.DocumentIDs); err != nil {
+			return err
+		}
+
+		return nil
+	})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -282,18 +305,36 @@ func (service *Service) SendMessage(ctx context.Context, payload SendMessagePayl
 		return nil, nil, err
 	}
 
-	// 7. Perform semantic search if DocumentID is provided
+	// 7. Perform scoped semantic search
 	var contextStr string
-	var documentName string
-	if payload.DocumentID != "" {
-		// Fetch document data
-		doc, err := service.docService.GetDocument(ctx, payload.DocumentID)
-		if err != nil {
-			service.logger.Errorf("GetDocument failed: %s", err)
-		}
-		documentName = doc.OriginalName
+	var documentNames []string
 
-		chunks, err := service.docService.Search(ctx, payload.Message, payload.DocumentID, 5)
+	// Check if its a Message scope
+	isMessageScoped := service.isMessageScopedQuery(payload.Message)
+	var searchIDs []string
+
+	if isMessageScoped && len(payload.DocumentIDs) > 0 {
+		searchIDs = payload.DocumentIDs
+	} else {
+		// All documents related to this conversation
+		searchIDs, err = service.repo.GetAssociatedDocumentIDs(ctx, payload.ConversationID)
+		if err != nil {
+			service.logger.Errorf("GetAssociatedDocumentIDs failed: %s", err)
+		}
+	}
+
+	if len(searchIDs) > 0 {
+		// Fetch document names
+		for _, docID := range searchIDs {
+			doc, err := service.docService.GetDocument(ctx, docID)
+			if err != nil {
+				service.logger.Errorf("GetDocument failed for %s: %s", docID, err)
+				continue
+			}
+			documentNames = append(documentNames, doc.OriginalName)
+		}
+
+		chunks, err := service.docService.Search(ctx, payload.Message, searchIDs, 5)
 		if err != nil {
 			service.logger.Errorf("Search failed: %s", err)
 		}
@@ -310,10 +351,10 @@ func (service *Service) SendMessage(ctx context.Context, payload SendMessagePayl
 	}
 
 	chatPromptData := &ChatPromptData{
-		Messages:     history,
-		UserMessage:  payload.Message,
-		Context:      contextStr,
-		DocumentName: documentName,
+		Messages:      history,
+		UserMessage:   payload.Message,
+		Context:       contextStr,
+		DocumentNames: documentNames,
 	}
 	chatPrompt, err := ai.RenderPrompt(ai.ChatPrompt, chatPromptData)
 	if err != nil {
@@ -328,4 +369,11 @@ func (service *Service) SendMessage(ctx context.Context, payload SendMessagePayl
 	go service.saveReply(context.Background(), payload.ConversationID, replyChan)
 
 	return tokenStream, errStream, nil
+}
+
+// isMessageScopedQuery checks if the message is scoped to this message files or for the chat files
+func (service *Service) isMessageScopedQuery(query string) bool {
+	pattern := `(?i)\b(this|these|those|that|current|the)\s+(?:current\s+)?(file|document|doc)s?\b`
+	matched, _ := regexp.MatchString(pattern, query)
+	return matched
 }

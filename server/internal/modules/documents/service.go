@@ -201,7 +201,7 @@ func (service *Service) EmbedDocument(ctx context.Context, documentID string, ch
 	return service.repo.UpdateStatus(ctx, documentID, "ready")
 }
 
-func (service *Service) Search(ctx context.Context, query string, documentID string, topK uint64) ([]string, error) {
+func (service *Service) Search(ctx context.Context, query string, documentIDs []string, topK uint64) ([]string, error) {
 	// 1. Render the search query prompt
 	promptData := &EmbedPromptData{
 		Text: query,
@@ -222,7 +222,7 @@ func (service *Service) Search(ctx context.Context, query string, documentID str
 	}
 
 	// 3. Search in Qdrant
-	points, err := service.repo.SearchPoints(ctx, embeddings[0], documentID, topK)
+	points, err := service.repo.SearchPoints(ctx, embeddings[0], documentIDs, topK)
 	if err != nil {
 		return nil, err
 	}

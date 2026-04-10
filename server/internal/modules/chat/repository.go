@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/db"
@@ -213,4 +214,55 @@ func (repo *Repository) GetMessagesByConversationID(ctx context.Context, convers
 	}
 
 	return messages, nil
+}
+
+func (repo *Repository) AddMessageDocuments(ctx context.Context, messageID string, documentIDs []string) error {
+	if len(documentIDs) == 0 {
+		return nil
+	}
+
+	query := `INSERT INTO message_documents(message_id, document_id) VALUES `
+	values := []any{}
+	for i, docID := range documentIDs {
+		if i > 0 {
+			query += ","
+		}
+		query += fmt.Sprintf("($%d, $%d)", i*2+1, i*2+2)
+		values = append(values, messageID, docID)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, queryTimeoutDuration)
+	defer cancel()
+
+	_, err := repo.db.ExecContext(ctx, query, values...)
+	return err
+}
+
+func (repo *Repository) GetAssociatedDocumentIDs(ctx context.Context, conversationID string) ([]string, error) {
+	query := `
+		SELECT DISTINCT md.document_id
+		FROM message_documents md
+		JOIN messages m ON md.message_id = m.id
+		WHERE m.conversation_id = $1
+	`
+
+	ctx, cancel := context.WithTimeout(ctx, queryTimeoutDuration)
+	defer cancel()
+
+	rows, err := repo.db.QueryContext(ctx, query, conversationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var docIDs []string
+	for rows.Next() {
+		var docID string
+		if err := rows.Scan(&docID); err != nil {
+			return nil, err
+		}
+		docIDs = append(docIDs, docID)
+	}
+
+	return docIDs, rows.Err()
 }

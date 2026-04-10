@@ -61,10 +61,10 @@ func (handler *Handler) StartConversation(w http.ResponseWriter, r *http.Request
 	user := ctx.Value(shared.UserCtxKey).(*users.User)
 	// 4. Form the service payload
 	startConversationPayload := &StartConversationPayload{
-		UserID:     user.ID,
-		Title:      "Default",
-		Message:    startConversationDTO.Message,
-		DocumentID: startConversationDTO.DocumentID,
+		UserID:      user.ID,
+		Title:       "Default",
+		Message:     startConversationDTO.Message,
+		DocumentIDs: startConversationDTO.DocumentIDs,
 	}
 	conversation, responseStream, errStream, err := handler.service.StartConversation(ctx, *startConversationPayload, handler.app.Config.RAG.Chunker.ChunksDir)
 	if err != nil {
@@ -311,7 +311,7 @@ func (handler *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
 		ConversationID: id,
 		UserID:         user.ID,
 		Message:        sendMessageDTO.Message,
-		DocumentID:     sendMessageDTO.DocumentID,
+		DocumentIDs:    sendMessageDTO.DocumentIDs,
 	}
 
 	tokenStream, errStream, err := handler.service.SendMessage(ctx, payload, handler.app.Config.RAG.Chunker.ChunksDir)

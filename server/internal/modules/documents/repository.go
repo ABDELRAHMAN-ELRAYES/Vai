@@ -153,13 +153,17 @@ func (repo *Repository) DeletePointsByDocumentID(ctx context.Context, documentID
 	return err
 }
 
-func (repo *Repository) SearchPoints(ctx context.Context, vector []float32, documentID string, topK uint64) ([]*qdrant.ScoredPoint, error) {
+func (repo *Repository) SearchPoints(ctx context.Context, vector []float32, documentIDs []string, topK uint64) ([]*qdrant.ScoredPoint, error) {
 	var filter *qdrant.Filter
-	if documentID != "" {
+	if len(documentIDs) > 0 {
+		var conditions []*qdrant.Condition
+		if len(documentIDs) == 1 {
+			conditions = append(conditions, qdrant.NewMatchKeyword("document_id", documentIDs[0]))
+		} else {
+			conditions = append(conditions, qdrant.NewMatchKeywords("document_id", documentIDs...))
+		}
 		filter = &qdrant.Filter{
-			Must: []*qdrant.Condition{
-				qdrant.NewMatchKeyword("document_id", documentID),
-			},
+			Must: conditions,
 		}
 	}
 

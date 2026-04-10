@@ -10,9 +10,10 @@ type Conversation struct {
 }
 
 type Message struct {
-	ID             string `json:"id"`
-	ConversationID string `json:"conversation_id"`
-	Content        string `json:"content"`
-	Role           string `json:"role"`
-	CreatedAt      string `json:"created_at"`
+	ID             string   `json:"id"`
+	ConversationID string   `json:"conversation_id"`
+	Content        string   `json:"content"`
+	Role           string   `json:"role"`
+	CreatedAt      string   `json:"created_at"`
+	DocumentIDs    []string `json:"document_ids,omitempty"`
 }

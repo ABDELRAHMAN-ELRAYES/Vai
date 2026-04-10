@@ -8,12 +8,11 @@
 ![Go Version](https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat-square&logo=go)
 ![Qdrant](https://img.shields.io/badge/Qdrant-Vector_DB-ff413d?style=flat-square&logo=qdrant&logoColor=white)
 ![Ollama](https://img.shields.io/badge/Ollama-Local_AI-white?style=flat-square&logo=ollama&logoColor=black)
-
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16+-336791?style=flat-square&logo=postgresql)
 ![React](https://img.shields.io/badge/React-19+-61DAFB?style=flat-square&logo=react)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
 
-**[Documentation](#documentation) · [Architecture](#architecture) · [Getting Started](#getting-started) · [Modules](#modules) · [Contributing](#contributing)**
+**[Documentation](#documentation--api-reference) · [Architecture](#architecture) · [Getting Started](#getting-started) · [Modules](#project-structure--modules) · [Contributing](#contributing)**
 
 </div>
 
@@ -29,10 +28,10 @@ Vai is a fully self-hosted RAG (Retrieval-Augmented Generation) system built wit
 - [Architecture](#architecture)
 - [How It Works](#how-it-works)
 - [Tech Stack](#tech-stack)
-- [Project Structure](#project-structure)
+- [Project Structure & Modules](#project-structure--modules)
 - [Getting Started](#getting-started)
 - [Configuration](#configuration)
-- [API Reference](#api-reference)
+- [Documentation & API Reference](#documentation--api-reference)
 
 ---
 
@@ -302,7 +301,7 @@ A background worker runs on a 24-hour cycle to delete stale draft documents — 
 
 ---
 
-## Project Structure
+## Project Structure & Modules
 
 ```
 vai/
@@ -429,7 +428,7 @@ All configuration is provided via environment variables. Copy `.envrc.example` t
 
 ---
 
-## API Reference
+## Documentation & API Reference
 
 Authentication is handled automatically via the `access_token` **HttpOnly cookie** set on login. No `Authorization` header is needed. Email verification is enforced on all document and chat endpoints.
 
