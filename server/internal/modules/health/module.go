@@ -2,6 +2,7 @@ package health
 
 import (
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/app"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/jobs"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -25,3 +26,5 @@ func (m *Module) Name() string {
 func (m *Module) RegisterRoutes(r chi.Router) {
 	RegisterRoutes(r, m.handler)
 }
+
+func (m *Module) RegisterJobs(scheduler *jobs.Scheduler) {}

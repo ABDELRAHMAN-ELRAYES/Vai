@@ -34,5 +34,6 @@ func Register(r chi.Router, app *app.Application) {
 
 	for _, m := range modules {
 		m.RegisterRoutes(r)
+		m.RegisterJobs(app.Scheduler)
 	}
 }

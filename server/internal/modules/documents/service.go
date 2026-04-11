@@ -7,12 +7,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/config"
 	sharedDocuments "github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/shared/modules/documents"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/rag-engine/ai"
 	apierror "github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/errors"
 	"github.com/qdrant/go-client/qdrant"
+	"go.uber.org/zap"
 
 	"github.com/ABDELRAHMAN-ELRAYES/go-chunker"
 	"github.com/google/uuid"
@@ -21,12 +23,14 @@ import (
 type Service struct {
 	repo      *Repository
 	aiService *ai.Service
+	logger    *zap.SugaredLogger
 }
 
-func NewService(repo *Repository, aiService *ai.Service) *Service {
+func NewService(repo *Repository, aiService *ai.Service, logger *zap.SugaredLogger) *Service {
 	return &Service{
 		repo:      repo,
 		aiService: aiService,
+		logger:    logger,
 	}
 }
 
@@ -141,7 +145,6 @@ func (service *Service) EmbedDocument(ctx context.Context, documentID string, ch
 		return apierror.ErrUnmarshalChunksFailed
 	}
 
-
 	var points []*qdrant.PointStruct
 
 	var chunksModelInput []string
@@ -168,7 +171,7 @@ func (service *Service) EmbedDocument(ctx context.Context, documentID string, ch
 		_ = service.repo.UpdateStatus(ctx, documentID, "failed")
 		return apierror.ErrEmbedChunksFailed
 	}
-	
+
 	// Form the Qdrant points
 	for i, chunk := range chunksFile.Chunks {
 		embedding := embeddings[i]
@@ -237,4 +240,26 @@ func (service *Service) Search(ctx context.Context, query string, documentIDs []
 	}
 
 	return results, nil
+}
+
+func (service *Service) CleanupOldDrafts(ctx context.Context, uploadDir string, chunksDir string) error {
+	// Find drafts older than 24 hours
+	drafts, err := service.repo.GetOldDrafts(ctx, 24*time.Hour)
+	if err != nil {
+		return err
+	}
+
+	if len(drafts) == 0 {
+		return nil
+	}
+
+	for _, doc := range drafts {
+		if err := service.DeleteDocument(ctx, doc.ID.String(), uploadDir, chunksDir); err != nil {
+			service.logger.Infow("Failed to delete document", "error", err)
+
+			continue
+		}
+	}
+
+	return nil
 }

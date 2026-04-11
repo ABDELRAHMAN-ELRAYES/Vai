@@ -48,6 +48,10 @@ func Run(app *app.Application, mux *chi.Mux) error {
 
 	app.Logger.Infow("server has started", "addr", app.Config.Addr, "env", app.Config.Env)
 
+	// Start Background Job Scheduler
+	app.Scheduler.Start()
+	defer app.Scheduler.Stop()
+
 	err := server.ListenAndServe()
 	if !errors.Is(err, http.ErrServerClosed) {
 		return err

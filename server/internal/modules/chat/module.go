@@ -2,6 +2,7 @@ package chat
 
 import (
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/app"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/jobs"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/middleware"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/documents"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/users"
@@ -35,3 +36,5 @@ func (m *Module) Name() string {
 func (m *Module) RegisterRoutes(r chi.Router) {
 	RegisterRoutes(r, m.handler, m.getUser)
 }
+
+func (m *Module) RegisterJobs(scheduler *jobs.Scheduler) {}

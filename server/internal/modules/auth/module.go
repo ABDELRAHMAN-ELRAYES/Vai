@@ -2,6 +2,7 @@ package auth
 
 import (
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/app"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/jobs"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/middleware"
 
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/users"
@@ -31,3 +32,5 @@ func (module *Module) Name() string {
 func (module *Module) RegisterRoutes(r chi.Router) {
 	RegisterRoutes(r, module.Handler, module.getUser)
 }
+
+func (module *Module) RegisterJobs(scheduler *jobs.Scheduler) {}

@@ -7,6 +7,7 @@ import (
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/auth"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/config"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/db"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/jobs"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/mailer"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/rag-engine"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/server"
@@ -88,6 +89,9 @@ func main() {
 
 	ragEngine := rag.New(logger, &cfg.RAG)
 
+	// Create a Job Scheduler
+	scheduler := jobs.NewScheduler(logger)
+
 	app := app.New(
 		cfg,
 		logger,
@@ -96,6 +100,7 @@ func main() {
 		authenticator,
 		mailer,
 		ragEngine,
+		scheduler,
 	)
 	// Create Router
 	mux := server.NewRouter(app)

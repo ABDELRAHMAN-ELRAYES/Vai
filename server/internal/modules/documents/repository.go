@@ -2,6 +2,7 @@ package documents
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/db"
@@ -179,4 +180,40 @@ func (repo *Repository) SearchPoints(ctx context.Context, vector []float32, docu
 	}
 
 	return res, nil
+}
+
+func (repo *Repository) GetOldDrafts(ctx context.Context, olderThan time.Duration) ([]*Document, error) {
+	query := `
+		SELECT id, owner_id, name, original_name, size, mime_type, status, created_at, updated_at
+		FROM documents
+		WHERE status = 'draft' AND created_at < NOW() - $1::interval
+	`
+	ctx, cancel := context.WithTimeout(ctx, queryTimeoutDuration)
+	defer cancel()
+
+	rows, err := repo.db.QueryContext(ctx, query, fmt.Sprintf("%d seconds", int(olderThan.Seconds())))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var docs []*Document
+	for rows.Next() {
+		var doc Document
+		if err := rows.Scan(
+			&doc.ID,
+			&doc.OwnerID,
+			&doc.Name,
+			&doc.OriginalName,
+			&doc.Size,
+			&doc.MimeType,
+			&doc.Status,
+			&doc.CreatedAt,
+			&doc.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		docs = append(docs, &doc)
+	}
+	return docs, nil
 }

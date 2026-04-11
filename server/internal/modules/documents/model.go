@@ -30,3 +30,8 @@ type DocumentChunk struct {
 	StartChar int    `json:"StartChar"`
 	EndChar   int    `json:"EndChar"`
 }
+type CleanupDraftsJob struct {
+	service   *Service
+	uploadDir string
+	chunksDir string
+}
