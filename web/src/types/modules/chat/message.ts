@@ -1,3 +1,5 @@
+import type { Document } from "../documents/document";
+
 export interface Message {
   id?: string;
   content: string;
@@ -5,4 +7,5 @@ export interface Message {
   createdAt?: Date;
   isLoading?: boolean;
   error?: string;
+  documents?: Document[];
 }

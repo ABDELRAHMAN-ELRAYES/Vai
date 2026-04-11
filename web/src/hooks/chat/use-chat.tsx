@@ -71,13 +71,21 @@ export const useChat = (id?: string) => {
       setState((prev) => {
         if (prev.isLoading) return prev;
 
+        const serverMessagesCount = conversationData.messages?.length || 0;
+        const localMessagesCount = prev.messages.length;
+
+        if (prev.chatId === conversationData.id && localMessagesCount > serverMessagesCount) {
+          return prev;
+        }
+
         return {
           ...prev,
           chatId: conversationData.id,
-          messages: conversationData.messages.map((m) => ({
+          messages: conversationData.messages.map((m: any) => ({
             id: m.id,
             content: m.content,
             role: m.role as "user" | "ai",
+            documents: m.documents,
           })),
           isLoading: false,
           error: null,
@@ -88,7 +96,7 @@ export const useChat = (id?: string) => {
 
   // Send Message
   const sendMessage = useCallback(
-    async (content: string, documentIds?: string[]) => {
+    async (content: string, documentIds?: string[], optimisticDocuments?: any[]) => {
       // Check the user enters a new message
       const messageContent: string = content.trim();
       if (!messageContent) {
@@ -101,6 +109,7 @@ export const useChat = (id?: string) => {
       id: crypto.randomUUID(),
       content: messageContent,
       role: "user",
+      documents: optimisticDocuments,
     };
     const assistantMessage: Message = {
       id: crypto.randomUUID(),
@@ -155,10 +164,13 @@ export const useChat = (id?: string) => {
             if (data === "[DONE]") continue;
             const parsedData = JSON.parse(data);
             if (parsedData.type == "info" && parsedData.conversationId) {
-              setState((prev) => ({
-                ...prev,
-                chatId: parsedData.conversationId,
-              }));
+              setState((prev) => {
+                if (prev.chatId === parsedData.conversationId) return prev;
+                return {
+                  ...prev,
+                  chatId: parsedData.conversationId,
+                };
+              });
               queryClient.invalidateQueries({
                 queryKey: ["chat", "conversations"],
               });
@@ -166,17 +178,15 @@ export const useChat = (id?: string) => {
             }
             if (parsedData.type == "token" && parsedData.token) {
               setState((prev) => {
-                const lastMessageIndex = prev.messages.length - 1;
-                const updatedMessages = prev.messages.map((m, index) => {
-                  if (index === lastMessageIndex && m.role === "ai") {
-                    return {
-                      ...m,
-                      content: m.content + parsedData.token,
-                      isLoading: false,
-                    };
-                  }
-                  return m;
-                });
+                const updatedMessages = [...prev.messages];
+                const lastIdx = updatedMessages.length - 1;
+                if (lastIdx >= 0 && updatedMessages[lastIdx].role === "ai") {
+                  updatedMessages[lastIdx] = {
+                    ...updatedMessages[lastIdx],
+                    content: updatedMessages[lastIdx].content + parsedData.token,
+                    isLoading: false,
+                  };
+                }
                 return { ...prev, messages: updatedMessages };
               });
             }
@@ -198,11 +208,13 @@ export const useChat = (id?: string) => {
         };
       });
 
-      // Refetch conversation to sync with server
+      // Refetch conversation after a small delay to ensure server has caught up
       if (id) {
-        queryClient.invalidateQueries({
-          queryKey: ["chat", "conversation", id],
-        });
+        setTimeout(() => {
+          queryClient.invalidateQueries({
+            queryKey: ["chat", "conversation", id],
+          });
+        }, 500);
       }
     } catch (error) {
       const errorMessage =

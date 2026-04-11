@@ -17,7 +17,7 @@ import { documentsApi } from "@/api/modules/documents/documents.api";
 const MAX_FILES = 3;
 
 interface ChatInputProps {
-  onSend: (message: string, documentIds?: string[]) => void;
+  onSend: (message: string, documentIds?: string[], optimisticDocuments?: any[]) => void;
   isLoading: boolean;
   disabled?: boolean;
 }
@@ -50,12 +50,20 @@ export const ChatInput = memo(
         setIsAuthOpen(true);
         return;
       }
-      // Send message with all successfully uploaded files
-      const documentIds = files
-        .filter((f) => f.status === "done" && f.documentId)
-        .map((f) => f.documentId as string);
+      
+      const uploadedFiles = files.filter((f) => f.status === "done" && f.documentId);
+      
+      const documentIds = uploadedFiles.map((f) => f.documentId as string);
+      
+      // Optimistic document display
+      const optimisticDocuments = uploadedFiles.map((f) => ({
+        id: f.documentId,
+        original_name: f.file.name,
+        size: f.file.size,
+        mime_type: f.file.type,
+      }));
 
-      onSend(input.trim(), documentIds);
+      onSend(input.trim(), documentIds, optimisticDocuments);
       setInput("");
       setFiles([]);
 

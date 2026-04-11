@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/db"
+	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/documents"
 	apierror "github.com/ABDELRAHMAN-ELRAYES/Vai/pkg/errors"
+	"github.com/google/uuid"
 )
 
 // queryTimeoutDuration is used to bound DB calls.
@@ -177,12 +179,16 @@ func (repo *Repository) GetConversationByID(ctx context.Context, id string) (*Co
 
 	return conv, nil
 }
-
 func (repo *Repository) GetMessagesByConversationID(ctx context.Context, conversationID string) ([]Message, error) {
-	query := `SELECT id, conversation_id, content, role, created_at
-			  FROM messages
-			  WHERE conversation_id = $1
-			  ORDER BY created_at ASC`
+	query := `
+		SELECT 
+			m.id, m.conversation_id, m.content, m.role, m.created_at,
+			d.id, d.owner_id, d.name, d.original_name, d.size, d.mime_type, d.status, d.created_at, d.updated_at
+		FROM messages m 
+		LEFT JOIN message_documents md ON m.id = md.message_id
+		LEFT JOIN documents d ON md.document_id = d.id
+		WHERE m.conversation_id = $1
+		ORDER BY m.created_at ASC`
 
 	ctx, cancel := context.WithTimeout(ctx, queryTimeoutDuration)
 	defer cancel()
@@ -193,29 +199,80 @@ func (repo *Repository) GetMessagesByConversationID(ctx context.Context, convers
 	}
 	defer rows.Close()
 
-	var messages []Message
+	messagesMap := make(map[string]*Message)
+	var messageOrder []string
+
+	// Scan + Filter duplicates
 	for rows.Next() {
-		msg := Message{}
+		var (
+			msg               Message
+			doc               documents.Document
+			documentID        sql.NullString
+			documentOwnerID   sql.NullString
+			documentName      sql.NullString
+			documentOrigName  sql.NullString
+			documentSize      sql.NullInt64
+			documentMimeType  sql.NullString
+			documentStatus    sql.NullString
+			documentCreatedAt sql.NullTime
+			documentUpdatedAt sql.NullTime
+		)
+
 		err := rows.Scan(
 			&msg.ID,
 			&msg.ConversationID,
 			&msg.Content,
 			&msg.Role,
 			&msg.CreatedAt,
+			&documentID,
+			&documentOwnerID,
+			&documentName,
+			&documentOrigName,
+			&documentSize,
+			&documentMimeType,
+			&documentStatus,
+			&documentCreatedAt,
+			&documentUpdatedAt,
 		)
 		if err != nil {
 			return nil, err
 		}
-		messages = append(messages, msg)
+
+		if _, exists := messagesMap[msg.ID]; !exists {
+			msg.Documents = []documents.Document{}
+			messagesMap[msg.ID] = &msg
+			messageOrder = append(messageOrder, msg.ID)
+		}
+
+		if documentID.Valid {
+			id, _ := uuid.Parse(documentID.String)
+			ownerID, _ := uuid.Parse(documentOwnerID.String)
+			doc = documents.Document{
+				ID:           id,
+				OwnerID:      ownerID,
+				Name:         documentName.String,
+				OriginalName: documentOrigName.String,
+				Size:         documentSize.Int64,
+				MimeType:     documentMimeType.String,
+				Status:       documentStatus.String,
+				CreatedAt:    documentCreatedAt.Time,
+				UpdatedAt:    documentUpdatedAt.Time,
+			}
+			messagesMap[msg.ID].Documents = append(messagesMap[msg.ID].Documents, doc)
+		}
 	}
 
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
 
+	messages := make([]Message, 0, len(messageOrder))
+	for _, id := range messageOrder {
+		messages = append(messages, *messagesMap[id])
+	}
+
 	return messages, nil
 }
-
 func (repo *Repository) AddMessageDocuments(ctx context.Context, messageID string, documentIDs []string) error {
 	if len(documentIDs) == 0 {
 		return nil
