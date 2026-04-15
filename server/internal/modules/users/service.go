@@ -2,6 +2,7 @@ package users
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/validator"
@@ -9,12 +10,32 @@ import (
 	"github.com/google/uuid"
 )
 
-type Service struct {
-	repo *Repository
+type IService interface {
+	GetUserByEmail(ctx context.Context, email string) (*User, error)
+	GetFromToken(ctx context.Context, token []byte) (*User, error)
+	ActivateUser(ctx context.Context, user *User) error
+	CreateWithModel(ctx context.Context, user *User) error
+	WithTx(tx *sql.Tx) IService
 }
 
-func NewService(repo *Repository) *Service {
+type Service struct {
+	repo IRepository
+}
+
+func NewService(repo IRepository) *Service {
 	return &Service{repo: repo}
+}
+func (service *Service) WithTx(tx *sql.Tx) IService {
+	return &Service{repo: service.repo.WithTx(tx)}
+}
+func (service *Service) CreateWithModel(ctx context.Context, user *User) error {
+	return service.repo.Create(ctx, user)
+}
+func (service *Service) GetFromToken(ctx context.Context, token []byte) (*User, error) {
+	return service.repo.GetFromToken(ctx, token)
+}
+func (service *Service) ActivateUser(ctx context.Context, user *User) error {
+	return service.repo.ActivateUser(ctx, user)
 }
 func (service *Service) Create(ctx context.Context, payload *CreateUserPayload) (*User, error) {
 	// Validate request body

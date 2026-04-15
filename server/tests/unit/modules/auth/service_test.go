@@ -30,7 +30,7 @@ func (m *mockAuthRepo) CleanUpToken(ctx context.Context, userID string) error {
 	return args.Error(0)
 }
 
-func (m *mockAuthRepo) WithTx(tx *sql.Tx) authModule.RepositoryInterface {
+func (m *mockAuthRepo) WithTx(tx *sql.Tx) authModule.IRepository {
 	m.Called(tx)
 	return m
 }
@@ -65,7 +65,7 @@ func (m *mockUsersService) CreateWithModel(ctx context.Context, user *users.User
 	return args.Error(0)
 }
 
-func (m *mockUsersService) WithTx(tx *sql.Tx) users.ServiceInterface {
+func (m *mockUsersService) WithTx(tx *sql.Tx) users.IService {
 	m.Called(tx)
 	return m
 }
@@ -84,19 +84,19 @@ func TestAuthService_Authenticate(t *testing.T) {
 	mockRepo := new(mockAuthRepo)
 	mockUsers := new(mockUsersService)
 	mockMail := new(mockMailer)
-	
+
 	cfg := &config.Config{
 		Authenticator: config.AuthenticatorConfig{
 			JWT: config.JWTConfig{
-				Secret: "secret",
-				Iss:    "iss",
-				Aud:    "aud",
+				Secret:     "secret",
+				Iss:        "iss",
+				Aud:        "aud",
 				SessionExp: time.Hour,
 			},
 		},
 	}
 	authenticator := auth.NewJWTuthenticator(cfg.Authenticator.JWT.Secret, cfg.Authenticator.JWT.Iss, cfg.Authenticator.JWT.Aud)
-	
+
 	service := authModule.NewService(db, mockRepo, mockUsers, authenticator, cfg, mockMail)
 
 	t.Run("successful authentication", func(t *testing.T) {
@@ -147,7 +147,7 @@ func TestAuthService_RegisterUser(t *testing.T) {
 		mockRepo := new(mockAuthRepo)
 		mockUsers := new(mockUsersService)
 		mockMail := new(mockMailer)
-		
+
 		cfg := &config.Config{
 			FrontendURL: "http://localhost:3000",
 			Authenticator: config.AuthenticatorConfig{
@@ -156,7 +156,7 @@ func TestAuthService_RegisterUser(t *testing.T) {
 				},
 			},
 		}
-		
+
 		service := authModule.NewService(db, mockRepo, mockUsers, nil, cfg, mockMail)
 
 		payload := authModule.RegisterUserPayload{
@@ -167,12 +167,12 @@ func TestAuthService_RegisterUser(t *testing.T) {
 		}
 
 		mockUsers.On("GetUserByEmail", mock.Anything, payload.Email).Return(nil, sql.ErrNoRows)
-		
+
 		// Transaction expectations
 		mockDB.ExpectBegin()
 		mockUsers.On("WithTx", mock.Anything).Return(mockUsers)
 		mockRepo.On("WithTx", mock.Anything).Return(mockRepo)
-		
+
 		mockUsers.On("CreateWithModel", mock.Anything, mock.AnythingOfType("*users.User")).Return(nil)
 		mockRepo.On("CreateToken", mock.Anything, mock.AnythingOfType("*auth.Token")).Return(nil)
 		mockDB.ExpectCommit()
@@ -185,7 +185,7 @@ func TestAuthService_RegisterUser(t *testing.T) {
 		assert.NotNil(t, res)
 		assert.Equal(t, payload.Email, res.User.Email)
 		assert.NotEmpty(t, res.Token)
-		
+
 		mockUsers.AssertExpectations(t)
 		mockRepo.AssertExpectations(t)
 		mockMail.AssertExpectations(t)

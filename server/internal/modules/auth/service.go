@@ -17,12 +17,10 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-
-
 type Service struct {
 	database      *sql.DB
-	repo          RepositoryInterface
-	userService   users.ServiceInterface
+	repo          IRepository
+	userService   users.IService
 	authenticator *authInternal.JWTAuthenticator
 	cfg           *config.Config
 	mailer        mailer.Client
@@ -30,8 +28,8 @@ type Service struct {
 
 func NewService(
 	db *sql.DB,
-	repo RepositoryInterface,
-	userService users.ServiceInterface,
+	repo IRepository,
+	userService users.IService,
 	authenticator *authInternal.JWTAuthenticator,
 	cfg *config.Config,
 	mailer mailer.Client,
@@ -85,7 +83,7 @@ func (service *Service) RegisterUser(ctx context.Context, payload RegisterUserPa
 		if err != nil {
 			return err
 		}
-		
+
 		tokenModel := &Token{
 			UserID:    user.ID,
 			Token:     hashedToken,

@@ -12,6 +12,14 @@ import (
 
 // queryTimeoutDuration is used to bound DB calls.
 var queryTimeoutDuration = 5 * time.Second
+type IRepository interface {
+	Create(ctx context.Context, user *User) error
+	GetByID(ctx context.Context, id uuid.UUID) (*User, error)
+	GetByEmail(ctx context.Context, email string) (*User, error)
+	ActivateUser(ctx context.Context, user *User) error
+	GetFromToken(ctx context.Context, token []byte) (*User, error)
+	WithTx(tx *sql.Tx) IRepository
+}
 
 type Repository struct {
 	db db.DBTX
@@ -20,7 +28,7 @@ type Repository struct {
 func NewRepository(db db.DBTX) *Repository {
 	return &Repository{db: db}
 }
-func (r *Repository) WithTx(tx *sql.Tx) *Repository {
+func (r *Repository) WithTx(tx *sql.Tx) IRepository {
 	return &Repository{db: tx}
 }
 func (repo *Repository) Create(ctx context.Context, user *User) error {
