@@ -14,6 +14,17 @@ import (
 // queryTimeoutDuration is used to bound DB calls.
 var queryTimeoutDuration = 5 * time.Second
 
+type IRepository interface {
+	Create(ctx context.Context, doc *Document) error
+	GetDocumentByID(ctx context.Context, id string) (*Document, error)
+	UpdateStatus(ctx context.Context, id string, status string) error
+	DeleteDocument(ctx context.Context, id string) error
+	UpsertPoints(ctx context.Context, points []*qdrant.PointStruct) error
+	DeletePointsByDocumentID(ctx context.Context, documentID string) error
+	SearchPoints(ctx context.Context, vector []float32, documentIDs []string, topK uint64) ([]*qdrant.ScoredPoint, error)
+	GetOldDrafts(ctx context.Context, olderThan time.Duration) ([]*Document, error)
+}
+
 type Repository struct {
 	db     db.DBTX
 	qdrant *QdrantClient

@@ -19,14 +19,18 @@ import (
 	"github.com/ABDELRAHMAN-ELRAYES/go-chunker"
 	"github.com/google/uuid"
 )
-
+type IService interface {
+	GetDocument(ctx context.Context, id string) (*Document, error)
+	Search(ctx context.Context, query string, documentIDs []string, topK uint64) ([]string, error)
+	EmbedDocument(ctx context.Context, documentID string, chunksDir string) error
+}
 type Service struct {
-	repo      *Repository
-	aiService *ai.Service
+	repo      IRepository
+	aiService ai.IService
 	logger    *zap.SugaredLogger
 }
 
-func NewService(repo *Repository, aiService *ai.Service, logger *zap.SugaredLogger) *Service {
+func NewService(repo IRepository, aiService ai.IService, logger *zap.SugaredLogger) *Service {
 	return &Service{
 		repo:      repo,
 		aiService: aiService,

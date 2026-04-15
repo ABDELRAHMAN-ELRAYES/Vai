@@ -15,6 +15,18 @@ import (
 // queryTimeoutDuration is used to bound DB calls.
 var queryTimeoutDuration = 5 * time.Second
 
+type IRepository interface {
+	CreateConversation(ctx context.Context, conversation *Conversation) error
+	CreateMessage(ctx context.Context, message *Message) error
+	UpdateConversation(ctx context.Context, conv *Conversation) error
+	GetConversationsByUserID(ctx context.Context, userID string) ([]*Conversation, error)
+	DeleteConversation(ctx context.Context, id string) error
+	GetConversationByID(ctx context.Context, id string) (*Conversation, error)
+	GetMessagesByConversationID(ctx context.Context, conversationID string) ([]Message, error)
+	AddMessageDocuments(ctx context.Context, messageID string, documentIDs []string) error
+	GetAssociatedDocumentIDs(ctx context.Context, conversationID string) ([]string, error)
+	WithTx(tx *sql.Tx) IRepository
+}
 type Repository struct {
 	db db.DBTX
 }
@@ -24,7 +36,7 @@ func NewRepository(db db.DBTX) *Repository {
 		db: db,
 	}
 }
-func (r *Repository) WithTx(tx *sql.Tx) *Repository {
+func (r *Repository) WithTx(tx *sql.Tx) IRepository {
 	return &Repository{db: tx}
 }
 func (repo *Repository) CreateConversation(ctx context.Context, conversation *Conversation) error {

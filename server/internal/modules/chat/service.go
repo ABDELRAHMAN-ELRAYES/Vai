@@ -20,14 +20,14 @@ import (
 
 type Service struct {
 	db          *sql.DB
-	repo        *Repository
-	aiService   *ai.Service
+	repo        IRepository
+	aiService   ai.IService
 	logger      *zap.SugaredLogger
-	userService *users.Service
-	docService  *documents.Service
+	userService users.IService
+	docService  documents.IService
 }
 
-func NewService(db *sql.DB, repo *Repository, aiService *ai.Service, logger *zap.SugaredLogger, userService *users.Service, docService *documents.Service) *Service {
+func NewService(db *sql.DB, repo IRepository, aiService ai.IService, logger *zap.SugaredLogger, userService users.IService, docService documents.IService) *Service {
 	return &Service{
 		db:          db,
 		repo:        repo,
@@ -46,12 +46,8 @@ func (service *Service) StartConversation(ctx context.Context, payload StartConv
 	conv := &Conversation{}
 
 	// Embed all documents if provided with the message
-	for _, docID := range payload.DocumentIDs {
-		err := service.docService.EmbedDocument(ctx, docID, chunksDir)
-		if err != nil {
-			service.logger.Errorf("EmbedDocument failed for %s: %s", docID, err)
-			return nil, nil, nil, err
-		}
+	if err := service.embedDocuments(ctx, payload.DocumentIDs, chunksDir); err != nil {
+		return nil, nil, nil, err
 	}
 
 	err := db.WithTx(service.db, ctx, func(tx *sql.Tx) error {
@@ -89,28 +85,7 @@ func (service *Service) StartConversation(ctx context.Context, payload StartConv
 	}
 
 	// 4. Perform scoped semantic search
-	var contextStr string
-	var documentNames []string
-
-	searchIDs := payload.DocumentIDs
-
-	if len(searchIDs) > 0 {
-		// Fetch document names for prompt
-		for _, docID := range searchIDs {
-			doc, err := service.docService.GetDocument(ctx, docID)
-			if err != nil {
-				service.logger.Errorf("GetDocument failed for %s: %s", docID, err)
-				continue
-			}
-			documentNames = append(documentNames, doc.OriginalName)
-		}
-
-		chunks, err := service.docService.Search(ctx, payload.Message, searchIDs, 5)
-		if err != nil {
-			service.logger.Errorf("Search failed: %s", err)
-		}
-		contextStr = strings.Join(chunks, "\n\n")
-	}
+	contextStr, documentNames, _ := service.getSemanticContext(ctx, payload.Message, payload.DocumentIDs)
 
 	// 5. Render the prompt
 	chatPromptData := &ChatPromptData{
@@ -119,22 +94,12 @@ func (service *Service) StartConversation(ctx context.Context, payload StartConv
 		Context:       contextStr,
 		DocumentNames: documentNames,
 	}
-	chatPrompt, err := ai.RenderPrompt(ai.ChatPrompt, chatPromptData)
-	if err != nil {
-		return nil, nil, nil, err
-	}
 
 	// 6. send the message to LLM
-	tokenChan, errChan := service.aiService.Generate(ctx, chatPrompt)
-
-	// 7. collect the strear tokens
-	replyChan, tokenStream, errStream := service.aiService.CollectTokens(tokenChan, errChan)
-
+	// 7. collect the stream tokens
 	// 8. save the response to the DB
-	go service.saveReply(context.Background(), conv.ID, replyChan)
-
 	// 9. stream the response
-	return conv, tokenStream, errStream, nil
+	return service.streamAIResponse(ctx, conv.ID, chatPromptData, conv)
 }
 
 // generate + update the conversation title
@@ -266,12 +231,8 @@ func (service *Service) SendMessage(ctx context.Context, payload SendMessagePayl
 	}
 
 	// 4. Embed all provided documents
-	for _, docID := range payload.DocumentIDs {
-		err := service.docService.EmbedDocument(ctx, docID, chunksDir)
-		if err != nil {
-			service.logger.Errorf("EmbedDocument failed for %s: %s", docID, err)
-			return nil, nil, err
-		}
+	if err := service.embedDocuments(ctx, payload.DocumentIDs, chunksDir); err != nil {
+		return nil, nil, err
 	}
 
 	// 5. Create the user message
@@ -306,9 +267,6 @@ func (service *Service) SendMessage(ctx context.Context, payload SendMessagePayl
 	}
 
 	// 7. Perform scoped semantic search
-	var contextStr string
-	var documentNames []string
-
 	// Check if its a Message scope
 	isMessageScoped := service.isMessageScopedQuery(payload.Message)
 	var searchIDs []string
@@ -323,23 +281,7 @@ func (service *Service) SendMessage(ctx context.Context, payload SendMessagePayl
 		}
 	}
 
-	if len(searchIDs) > 0 {
-		// Fetch document names
-		for _, docID := range searchIDs {
-			doc, err := service.docService.GetDocument(ctx, docID)
-			if err != nil {
-				service.logger.Errorf("GetDocument failed for %s: %s", docID, err)
-				continue
-			}
-			documentNames = append(documentNames, doc.OriginalName)
-		}
-
-		chunks, err := service.docService.Search(ctx, payload.Message, searchIDs, 5)
-		if err != nil {
-			service.logger.Errorf("Search failed: %s", err)
-		}
-		contextStr = strings.Join(chunks, "\n\n")
-	}
+	contextStr, documentNames, _ := service.getSemanticContext(ctx, payload.Message, searchIDs)
 
 	// 8. Render the prompt with history (exclude the last user message)
 	history := make([]Message, 0, len(prevMessages))
@@ -356,19 +298,11 @@ func (service *Service) SendMessage(ctx context.Context, payload SendMessagePayl
 		Context:       contextStr,
 		DocumentNames: documentNames,
 	}
-	chatPrompt, err := ai.RenderPrompt(ai.ChatPrompt, chatPromptData)
-	if err != nil {
-		return nil, nil, err
-	}
 
 	// 9. Send to AI model and start streaming
-	tokenChan, errChan := service.aiService.Generate(ctx, chatPrompt)
-	replyChan, tokenStream, errStream := service.aiService.CollectTokens(tokenChan, errChan)
-
 	// 10. Save the AI reply
-	go service.saveReply(context.Background(), payload.ConversationID, replyChan)
-
-	return tokenStream, errStream, nil
+	_, tokenStream, errStream, err := service.streamAIResponse(ctx, payload.ConversationID, chatPromptData, nil)
+	return tokenStream, errStream, err
 }
 
 // isMessageScopedQuery checks if the message is scoped to this message files or for the chat files
@@ -376,4 +310,58 @@ func (service *Service) isMessageScopedQuery(query string) bool {
 	pattern := `(?i)\b(this|these|those|that|current|the)\s+(?:current\s+)?(file|document|doc)s?\b`
 	matched, _ := regexp.MatchString(pattern, query)
 	return matched
+}
+
+func (service *Service) embedDocuments(ctx context.Context, documentIDs []string, chunksDir string) error {
+	for _, docID := range documentIDs {
+		err := service.docService.EmbedDocument(ctx, docID, chunksDir)
+		if err != nil {
+			service.logger.Errorf("EmbedDocument failed for %s: %s", docID, err)
+			return err
+		}
+	}
+	return nil
+}
+
+func (service *Service) getSemanticContext(ctx context.Context, message string, documentIDs []string) (string, []string, error) {
+	var contextStr string
+	var documentNames []string
+
+	if len(documentIDs) > 0 {
+		// Fetch document names for prompt
+		for _, docID := range documentIDs {
+			doc, err := service.docService.GetDocument(ctx, docID)
+			if err != nil {
+				service.logger.Errorf("GetDocument failed for %s: %s", docID, err)
+				continue
+			}
+			documentNames = append(documentNames, doc.OriginalName)
+		}
+
+		chunks, err := service.docService.Search(ctx, message, documentIDs, 5)
+		if err != nil {
+			service.logger.Errorf("Search failed: %s", err)
+		}
+		contextStr = strings.Join(chunks, "\n\n")
+	}
+
+	return contextStr, documentNames, nil
+}
+
+func (service *Service) streamAIResponse(ctx context.Context, conversationID string, chatPromptData *ChatPromptData, conv *Conversation) (*Conversation, <-chan string, <-chan error, error) {
+	chatPrompt, err := ai.RenderPrompt(ai.ChatPrompt, chatPromptData)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	// Send to AI model and start streaming
+	tokenChan, errChan := service.aiService.Generate(ctx, chatPrompt)
+
+	// Collect the stream tokens
+	replyChan, tokenStream, errStream := service.aiService.CollectTokens(tokenChan, errChan)
+
+	// Save the response to the DB
+	go service.saveReply(context.Background(), conversationID, replyChan)
+
+	return conv, tokenStream, errStream, nil
 }
