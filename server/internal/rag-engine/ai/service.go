@@ -5,6 +5,13 @@ import (
 	"strings"
 )
 
+
+type IService interface {
+	Generate(ctx context.Context, prompt string) (<-chan string, <-chan error)
+	CollectTokens(tokenChan <-chan string, errChan <-chan error) (<-chan string, <-chan string, <-chan error)
+	EmbedBatch(ctx context.Context, input []string) ([][]float32, error)
+}
+
 type Service struct {
 	client *Client
 }
