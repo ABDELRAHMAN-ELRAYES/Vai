@@ -80,7 +80,10 @@ func TestUsersService_Create(t *testing.T) {
 
 	t.Run("user creation failed - email exists", func(t *testing.T) {
 		payload := &users.CreateUserPayload{
-			Email: "existing@example.com",
+			FirstName: "Jane",
+			LastName:  "Doe",
+			Email:     "existing@example.com",
+			Password:  "securepassword",
 		}
 
 		mockRepo.On("GetByEmail", mock.Anything, payload.Email).Return(&users.User{}, nil)

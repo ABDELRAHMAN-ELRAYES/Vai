@@ -1,10 +1,10 @@
 package validator
 
-import "github.com/go-playground/validator/v10"
+import v "github.com/go-playground/validator/v10"
 
 // Validate is the global validator instance used across the application.
-var Validate *validator.Validate
+var Validate *v.Validate
 
 func init() {
-	Validate = validator.New(validator.WithRequiredStructEnabled())
+	Validate = v.New(v.WithRequiredStructEnabled())
 }
