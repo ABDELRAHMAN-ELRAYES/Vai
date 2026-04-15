@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/auth"
+	authInternal "github.com/ABDELRAHMAN-ELRAYES/Vai/internal/auth"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/config"
-	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/db"
+	dbPkg "github.com/ABDELRAHMAN-ELRAYES/Vai/internal/db"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/mailer"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/modules/users"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/validator"
@@ -17,25 +17,27 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+
+
 type Service struct {
-	db            *sql.DB
-	repo          *Repository
-	userService   *users.Service
-	authenticator *auth.JWTAuthenticator
+	database      *sql.DB
+	repo          RepositoryInterface
+	userService   users.ServiceInterface
+	authenticator *authInternal.JWTAuthenticator
 	cfg           *config.Config
 	mailer        mailer.Client
 }
 
 func NewService(
 	db *sql.DB,
-	repo *Repository,
-	userService *users.Service,
-	authenticator *auth.JWTAuthenticator,
+	repo RepositoryInterface,
+	userService users.ServiceInterface,
+	authenticator *authInternal.JWTAuthenticator,
 	cfg *config.Config,
 	mailer mailer.Client,
 ) *Service {
 	return &Service{
-		db:            db,
+		database:      db,
 		repo:          repo,
 		userService:   userService,
 		authenticator: authenticator,
@@ -53,9 +55,12 @@ func (service *Service) RegisterUser(ctx context.Context, payload RegisterUserPa
 	_, err := service.userService.GetUserByEmail(ctx, payload.Email)
 
 	if err != nil {
-		if !errors.Is(err, apierror.ErrNotFound) {
+		if !errors.Is(err, apierror.ErrNotFound) && !errors.Is(err, sql.ErrNoRows) {
 			return nil, err
 		}
+	} else {
+		// User found, conflict
+		return nil, apierror.ErrConflict
 	}
 
 	// create user
@@ -68,25 +73,26 @@ func (service *Service) RegisterUser(ctx context.Context, payload RegisterUserPa
 	if err = user.Password.Set(payload.Password); err != nil {
 		return nil, err
 	}
-	token := auth.GenerateRandomToken()
-	hashedToken := auth.HashToken(token)
+	token := authInternal.GenerateRandomToken()
+	hashedToken := authInternal.HashToken(token)
 
 	// Create a new user + token (with tranasaction)
-	err = db.WithTx(service.db, ctx, func(tx *sql.Tx) error {
-		userRepo := users.NewRepository(tx)
-		authRepo := NewRepository(tx)
+	err = dbPkg.WithTx(service.database, ctx, func(tx *sql.Tx) error {
+		userServ := service.userService.WithTx(tx)
+		authRepo := service.repo.WithTx(tx)
 
-		err = userRepo.Create(ctx, user)
+		err = userServ.CreateWithModel(ctx, user)
 		if err != nil {
 			return err
 		}
-		token := &Token{
+		
+		tokenModel := &Token{
 			UserID:    user.ID,
 			Token:     hashedToken,
 			ExpiredAt: time.Now().Add(service.cfg.Authenticator.JWT.MailTokenExp),
 		}
 
-		err = authRepo.CreateToken(ctx, token)
+		err = authRepo.CreateToken(ctx, tokenModel)
 		if err != nil {
 			return err
 		}
@@ -122,21 +128,21 @@ func (service *Service) RegisterUser(ctx context.Context, payload RegisterUserPa
 }
 
 func (service *Service) ActivateUser(ctx context.Context, token string) error {
-	hashedToken := auth.HashToken(token)
+	hashedToken := authInternal.HashToken(token)
 
-	return db.WithTx(service.db, ctx, func(tx *sql.Tx) error {
-		userRepo := users.NewRepository(tx)
-		authRepo := NewRepository(tx)
+	return dbPkg.WithTx(service.database, ctx, func(tx *sql.Tx) error {
+		userServ := service.userService.WithTx(tx)
+		authRepo := service.repo.WithTx(tx)
 
 		// Get  User by The sent token
-		user, err := userRepo.GetFromToken(ctx, hashedToken)
+		user, err := userServ.GetFromToken(ctx, hashedToken)
 		if err != nil {
 			return err
 		}
 
 		// Activate user account
 		user.IsActive = true
-		if err := userRepo.ActivateUser(ctx, user); err != nil {
+		if err := userServ.ActivateUser(ctx, user); err != nil {
 			return err
 		}
 

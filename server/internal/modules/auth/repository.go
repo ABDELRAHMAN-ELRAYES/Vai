@@ -11,6 +11,11 @@ import (
 // queryTimeoutDuration is used to bound DB calls.
 var queryTimeoutDuration = 5 * time.Second
 
+type RepositoryInterface interface {
+	CreateToken(ctx context.Context, token *Token) error
+	CleanUpToken(ctx context.Context, userID string) error
+	WithTx(tx *sql.Tx) RepositoryInterface
+}
 type Repository struct {
 	db db.DBTX
 }
@@ -20,7 +25,7 @@ func NewRepository(db db.DBTX) *Repository {
 }
 
 // Enable the Transaction on the Repository methods without passing tx to each method
-func (r *Repository) WithTx(tx *sql.Tx) *Repository {
+func (r *Repository) WithTx(tx *sql.Tx) RepositoryInterface {
 	return &Repository{db: tx}
 }
 func (repo *Repository) CreateToken(ctx context.Context, token *Token) error {
