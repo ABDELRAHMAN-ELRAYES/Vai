@@ -8,6 +8,7 @@ import (
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/config"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/db"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/jobs"
+	ratelimiter "github.com/ABDELRAHMAN-ELRAYES/Vai/internal/limiter"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/mailer"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/rag-engine"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/server"
@@ -92,6 +93,11 @@ func main() {
 	// Create a Job Scheduler
 	scheduler := jobs.NewScheduler(logger)
 
+	// Rate limiter
+	rateLimiter := ratelimiter.NewFixedWindowLimiter(
+		cfg.RateLimiter.RequestsPerTimeFrame,
+		cfg.RateLimiter.TimeFrame,
+	)
 	app := app.New(
 		cfg,
 		logger,
@@ -101,6 +107,7 @@ func main() {
 		mailer,
 		ragEngine,
 		scheduler,
+		rateLimiter,
 	)
 	// Create Router
 	mux := server.NewRouter(app)

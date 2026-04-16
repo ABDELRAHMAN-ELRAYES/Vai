@@ -6,6 +6,7 @@ import (
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/auth"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/config"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/jobs"
+	ratelimiter "github.com/ABDELRAHMAN-ELRAYES/Vai/internal/limiter"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/mailer"
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/rag-engine"
 	"github.com/qdrant/go-client/qdrant"
@@ -21,6 +22,7 @@ type Application struct {
 	Mailer        mailer.Client
 	RAG           *rag.RAGEngine
 	Scheduler     *jobs.Scheduler
+	RateLimiter   ratelimiter.Limiter
 }
 
 func New(
@@ -31,7 +33,9 @@ func New(
 	authenticator *auth.JWTAuthenticator,
 	mailer mailer.Client,
 	rag *rag.RAGEngine,
-	scheduler *jobs.Scheduler) *Application {
+	scheduler *jobs.Scheduler,
+	rateLimiter ratelimiter.Limiter,
+) *Application {
 	return &Application{
 		Config:        cfg,
 		Logger:        logger,
@@ -41,5 +45,6 @@ func New(
 		Mailer:        mailer,
 		RAG:           rag,
 		Scheduler:     scheduler,
+		RateLimiter:   rateLimiter,
 	}
 }

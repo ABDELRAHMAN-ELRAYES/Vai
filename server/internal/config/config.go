@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/ABDELRAHMAN-ELRAYES/Vai/internal/env"
+	ratelimiter "github.com/ABDELRAHMAN-ELRAYES/Vai/internal/limiter"
 )
 
 func Load() Config {
@@ -55,6 +56,11 @@ func Load() Config {
 		},
 		Upload: UploadConfig{
 			Dir: env.GetStringEnv("UPLOAD_DIR", "./uploads/raw"),
+		},
+				RateLimiter: ratelimiter.Config{
+			RequestsPerTimeFrame: env.GetIntEnv("RATELIMITER_REQUESTS_COUNT", 20),
+			TimeFrame:            5 * time.Second,
+			Enabled:              env.GetBoolEnv("RATELIMITER_ENABLED", true),
 		},
 	}
 }

@@ -1,6 +1,10 @@
 package config
 
-import "time"
+import (
+	"time"
+
+	ratelimiter "github.com/ABDELRAHMAN-ELRAYES/Vai/internal/limiter"
+)
 
 type Config struct {
 	Addr          string
@@ -13,6 +17,7 @@ type Config struct {
 	Authenticator AuthenticatorConfig
 	Mail          Mail
 	Upload        UploadConfig
+	RateLimiter   ratelimiter.Config
 }
 
 // DB holds database related configuration.
